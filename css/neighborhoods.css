@@ -28,9 +28,9 @@
   background: #0A0A0A;
 }
 
-/* Leaflet tile pane — streets visible, clean dark base */
+/* Leaflet tile pane — full brightness so streets & labels are readable */
 #hood-map-container .leaflet-tile-pane {
-  opacity: 0.9;
+  opacity: 1;
 }
 
 /* Hide Leaflet attribution for clean look */
@@ -56,7 +56,7 @@
   gap: 4px;
   z-index: 10;
   /* Counter-rotate so buttons stay upright while map is rotated */
-  transform: rotate(-29deg);
+  transform: rotate(29deg);
 }
 
 .zoom-btn {

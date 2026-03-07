@@ -125,7 +125,7 @@ const SUB_TO_LOCALITY = {
 // Manhattan's street grid runs ~29° east of true north. Rotating the
 // map by this amount makes the island vertical — the classic NYC
 // subway-map orientation.
-const MAP_ROTATION_DEG = 29;
+const MAP_ROTATION_DEG = -29;
 
 // ─── Load GeoJSON + render Leaflet map ──────────────────────────
 function initHoodMap() {
@@ -157,9 +157,8 @@ function initHoodMap() {
     maxZoom: 18,
   }).setView([40.758, -73.985], 12);
 
-  // CartoDB Dark Matter (no labels — rotated text looks bad)
-  // Streets are still visible as lines which gives the city feel.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  // CartoDB Dark Matter with labels — readable streets & landmarks
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     subdomains: 'abcd',
   }).addTo(hoodMap);
