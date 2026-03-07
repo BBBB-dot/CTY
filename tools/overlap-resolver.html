@@ -199,6 +199,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; colo
     <textarea id="export-textarea" readonly></textarea>
     <div class="btns">
       <button class="ctrl-btn" onclick="document.getElementById('export-modal').classList.remove('active')">Close</button>
+      <button class="ctrl-btn export" onclick="downloadExport()">Download .js File</button>
       <button class="ctrl-btn export" onclick="copyExport()">Copy to Clipboard</button>
     </div>
   </div>
@@ -306,8 +307,8 @@ let mapLayers = {};   // temporary display layers
 
 // ─── Init map ───
 const map = L.map('map', { zoomControl: true }).setView([40.758, -73.985], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '&copy; OpenStreetMap'
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO', opacity: 0.35
 }).addTo(map);
 
 // ─── Polygon area (shoelace) ───
@@ -425,7 +426,7 @@ function showConflict(idx) {
   Object.entries(polyData).forEach(([id, d]) => {
     if (id === c.a || id === c.b) return;
     const l = L.polygon(d.latlngs.map(p => [p[0], p[1]]), {
-      color: '#444', weight: 0.5, fillColor: '#222', fillOpacity: 0.08
+      color: '#888', weight: 1, fillColor: '#444', fillOpacity: 0.2
     }).addTo(map);
     l.bindTooltip(d.name, { sticky: true, className: 'context-tooltip' });
     mapLayers['ctx-' + id] = l;
@@ -433,7 +434,7 @@ function showConflict(idx) {
 
   // Draw neighborhood B (larger, below)
   const layerB = L.polygon(dB.latlngs.map(p => [p[0], p[1]]), {
-    color: '#60a5fa', weight: 2.5, fillColor: '#60a5fa', fillOpacity: 0.15,
+    color: '#60a5fa', weight: 3, fillColor: '#60a5fa', fillOpacity: 0.4,
     dashArray: winner === c.b ? null : '5,5'
   }).addTo(map);
   layerB.bindTooltip(dB.name, { sticky: true });
@@ -441,7 +442,7 @@ function showConflict(idx) {
 
   // Draw neighborhood A (smaller, on top)
   const layerA = L.polygon(dA.latlngs.map(p => [p[0], p[1]]), {
-    color: '#4ade80', weight: 2.5, fillColor: '#4ade80', fillOpacity: 0.2,
+    color: '#4ade80', weight: 3, fillColor: '#4ade80', fillOpacity: 0.45,
     dashArray: winner === c.a ? null : '5,5'
   }).addTo(map);
   layerA.bindTooltip(dA.name, { sticky: true });
@@ -623,10 +624,36 @@ function exportDecisions() {
 }
 
 function copyExport() {
-  const ta = document.getElementById('export-textarea');
-  ta.select();
-  document.execCommand('copy');
-  alert('Copied to clipboard!');
+  const text = document.getElementById('export-textarea').value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(() => {
+      // Fallback
+      const ta = document.getElementById('export-textarea');
+      ta.select();
+      document.execCommand('copy');
+      alert('Copied to clipboard (fallback)!');
+    });
+  } else {
+    const ta = document.getElementById('export-textarea');
+    ta.select();
+    document.execCommand('copy');
+    alert('Copied to clipboard!');
+  }
+}
+
+function downloadExport() {
+  const text = document.getElementById('export-textarea').value;
+  const blob = new Blob([text], { type: 'text/javascript' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'neighborhood-priority.js';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Start ───

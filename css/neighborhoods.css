@@ -78,7 +78,11 @@
   pointer-events: none;
 }
 .street-grid {
-  opacity: 0.9;
+  opacity: 1;
+}
+/* OSM streets render behind all neighborhood content */
+.osm-streets {
+  opacity: 1;
 }
 
 .sub-label {

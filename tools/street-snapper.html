@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Street Snapper – Auto-align Boundaries to Real Streets</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+
+#sidebar {
+  width: 360px; min-width: 360px; background: #16213e; border-right: 1px solid #333;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#sidebar-header {
+  padding: 16px; border-bottom: 1px solid #333; background: #0f3460;
+}
+#sidebar-header h2 { font-size: 17px; margin-bottom: 4px; }
+#sidebar-header .subtitle { font-size: 12px; color: #aaa; }
+
+#street-status {
+  padding: 10px 14px; border-bottom: 1px solid #333; font-size: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+#street-status .spinner {
+  width: 14px; height: 14px; border: 2px solid #555; border-top-color: #FF1493;
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#street-status.ready { color: #4ade80; }
+#street-status.loading { color: #f59e0b; }
+#street-status.error { color: #ef4444; }
+
+#hood-search {
+  width: 100%; padding: 10px 14px; background: #1a1a2e; border: none;
+  border-bottom: 1px solid #444; color: #fff; font-size: 14px; outline: none;
+}
+#hood-search:focus { border-bottom-color: #FF1493; }
+
+#hood-list { flex: 1; overflow-y: auto; }
+.hood-item {
+  padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #222;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background 0.15s;
+}
+.hood-item:hover { background: #1a2744; }
+.hood-item.active { background: #0f3460; border-left: 3px solid #FF1493; }
+.hood-name { font-size: 13px; font-weight: 500; }
+.hood-meta { font-size: 10px; color: #888; margin-top: 2px; }
+.hood-status { font-size: 11px; font-weight: 600; }
+.hood-status.snapped { color: #4ade80; }
+.hood-status.original { color: #666; }
+
+#info-panel {
+  padding: 12px 16px; border-top: 1px solid #333; background: #0f3460;
+  font-size: 12px; color: #aaa;
+}
+#info-panel .label { color: #FF1493; font-weight: 600; }
+
+#map-container { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+
+#controls {
+  position: absolute; top: 12px; right: 12px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ctrl-btn {
+  padding: 8px 16px; background: #0f3460; border: 1px solid #555; color: #fff;
+  cursor: pointer; font-size: 13px; border-radius: 6px; transition: all 0.15s;
+  white-space: nowrap;
+}
+.ctrl-btn:hover { background: #1a4a8a; }
+.ctrl-btn.active { background: #FF1493; border-color: #FF1493; }
+.ctrl-btn.export { background: #065f46; border-color: #10b981; }
+.ctrl-btn.danger { background: #991b1b; border-color: #dc2626; }
+.ctrl-btn.snap { background: #7c3aed; border-color: #a78bfa; }
+.ctrl-btn.snap:hover { background: #6d28d9; }
+.ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+#legend {
+  position: absolute; bottom: 12px; left: 12px; z-index: 1000;
+  background: rgba(15,52,96,0.95); border: 1px solid #444; border-radius: 8px;
+  padding: 10px 14px; font-size: 12px; backdrop-filter: blur(8px);
+}
+#legend .legend-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+#legend .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; }
+#legend .dot-original { background: #FF1493; border-color: #FF1493; }
+#legend .dot-snapped { background: #4ade80; border-color: #4ade80; }
+#legend .line-street { width: 20px; height: 3px; background: #f59e0b; border: none; border-radius: 0; }
+
+/* Export modal */
+#export-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+}
+#export-modal.active { display: flex; }
+#export-content {
+  background: #16213e; border: 1px solid #555; border-radius: 12px;
+  padding: 24px; width: 90%; max-width: 900px; max-height: 80vh;
+  display: flex; flex-direction: column;
+}
+#export-content h3 { margin-bottom: 12px; color: #FF1493; }
+#export-textarea {
+  flex: 1; min-height: 400px; background: #0a0a1a; color: #4ade80;
+  border: 1px solid #444; border-radius: 6px; padding: 12px;
+  font-family: 'Fira Code', monospace; font-size: 12px; resize: none;
+}
+#export-content .btns { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Snap threshold slider */
+#snap-controls {
+  position: absolute; bottom: 12px; right: 12px; z-index: 1000;
+  background: rgba(15,52,96,0.95); border: 1px solid #444; border-radius: 8px;
+  padding: 10px 14px; font-size: 12px; backdrop-filter: blur(8px);
+  min-width: 220px;
+}
+#snap-controls label { display: block; margin-bottom: 6px; color: #aaa; }
+#snap-controls input[type=range] { width: 100%; }
+#snap-controls .val { color: #4ade80; font-weight: 600; }
+
+/* Vertex marker styles */
+.vertex-marker { border: none !important; background: transparent !important; }
+.vertex-dot {
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff;
+  cursor: grab; transition: transform 0.1s;
+  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+}
+.vertex-dot:hover { transform: scale(1.3); }
+.vertex-dot.original { background: #FF1493; }
+.vertex-dot.snapped { background: #4ade80; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h2>Street Snapper</h2>
+    <div class="subtitle">Auto-snap neighborhood boundaries to real OpenStreetMap streets</div>
+  </div>
+  <div id="street-status" class="loading">
+    <div class="spinner"></div>
+    <span id="street-status-text">Loading street data from OpenStreetMap...</span>
+  </div>
+  <input type="text" id="hood-search" placeholder="Search neighborhoods..." oninput="filterList()">
+  <div id="hood-list"></div>
+  <div id="info-panel">
+    <div>Loading street geometry... Please wait.</div>
+    <div style="margin-top:8px">
+      <span class="label" id="edit-count">0</span> neighborhoods snapped
+    </div>
+  </div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div id="controls">
+    <button class="ctrl-btn snap" id="btn-snap-selected" onclick="snapSelected()" disabled>Snap Selected to Streets</button>
+    <button class="ctrl-btn snap" id="btn-snap-all" onclick="snapAll()" disabled>Snap ALL to Streets</button>
+    <button class="ctrl-btn" id="btn-add-vertex" onclick="toggleAddVertex()" style="display:none">+ Add Vertex</button>
+    <button class="ctrl-btn" id="btn-delete-vertex" onclick="toggleDeleteVertex()" style="display:none">- Delete Vertex</button>
+    <button class="ctrl-btn danger" id="btn-revert" onclick="revertCurrent()" style="display:none">Revert to Original</button>
+    <button class="ctrl-btn" onclick="resetView()">Reset View</button>
+    <button class="ctrl-btn export" onclick="exportBoundaries()">Export All</button>
+  </div>
+  <div id="legend">
+    <div class="legend-row"><div class="dot dot-original"></div> Original vertex</div>
+    <div class="legend-row"><div class="dot dot-snapped"></div> Snapped to street</div>
+    <div class="legend-row"><div class="line-street"></div> OSM street data</div>
+  </div>
+  <div id="snap-controls">
+    <label>Snap threshold: <span class="val" id="thresh-val">25m</span></label>
+    <input type="range" id="snap-threshold" min="5" max="80" value="25" oninput="updateThreshold()">
+    <div style="margin-top:6px;color:#888;font-size:11px">
+      Vertices within this distance of a street will be snapped to it. Others stay put for manual adjustment.
+    </div>
+  </div>
+</div>
+
+<div id="export-modal">
+  <div id="export-content">
+    <h3>Export Updated Boundaries</h3>
+    <p style="font-size:13px;color:#aaa;margin-bottom:12px">
+      Copy this to replace the contents of <code>data/locality-boundaries.js</code>
+    </p>
+    <textarea id="export-textarea" readonly></textarea>
+    <div class="btns">
+      <button class="ctrl-btn" onclick="document.getElementById('export-modal').classList.remove('active')">Close</button>
+      <button class="ctrl-btn export" onclick="downloadExport()">Download .js File</button>
+      <button class="ctrl-btn export" onclick="copyExport()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script src="../data/locality-boundaries.js"></script>
+<script>
+// ─── State ───
+const hoodData = {};
+let selectedHood = null;
+let vertexMarkers = [];
+let polyLayer = null;
+let contextLayers = [];
+let addVertexMode = false;
+let deleteVertexMode = false;
+let streetSegments = [];    // array of { lat1, lng1, lat2, lng2 } for every street segment
+let streetLayers = [];      // Leaflet polyline layers for street visualization
+let snapThreshold = 25;     // meters
+let streetsLoaded = false;
+const snappedVertices = new Set();
+
+// ─── Geo helpers ───
+// Haversine distance in meters
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Closest point on a line segment (A→B) to point P, in lat/lng
+function closestPointOnSegment(pLat, pLng, aLat, aLng, bLat, bLng) {
+  const dx = bLat - aLat, dy = bLng - aLng;
+  const lenSq = dx*dx + dy*dy;
+  if (lenSq === 0) return { lat: aLat, lng: aLng };
+  let t = ((pLat - aLat)*dx + (pLng - aLng)*dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return { lat: aLat + t*dx, lng: aLng + t*dy };
+}
+
+// Find the nearest point on any street segment to a given point
+function nearestStreetPoint(lat, lng) {
+  let bestDist = Infinity;
+  let bestPoint = null;
+
+  for (const seg of streetSegments) {
+    const cp = closestPointOnSegment(lat, lng, seg.lat1, seg.lng1, seg.lat2, seg.lng2);
+    const d = haversine(lat, lng, cp.lat, cp.lng);
+    if (d < bestDist) {
+      bestDist = d;
+      bestPoint = cp;
+    }
+  }
+
+  return { point: bestPoint, distance: bestDist };
+}
+
+// ─── Build spatial grid for faster lookups ───
+const GRID_SIZE = 0.005; // ~500m cells
+const spatialGrid = {};
+
+function gridKey(lat, lng) {
+  return Math.floor(lat / GRID_SIZE) + ',' + Math.floor(lng / GRID_SIZE);
+}
+
+function addToGrid(seg) {
+  // Add segment to all grid cells it might touch
+  const minLat = Math.min(seg.lat1, seg.lat2);
+  const maxLat = Math.max(seg.lat1, seg.lat2);
+  const minLng = Math.min(seg.lng1, seg.lng2);
+  const maxLng = Math.max(seg.lng1, seg.lng2);
+
+  for (let lat = Math.floor(minLat/GRID_SIZE)*GRID_SIZE; lat <= maxLat + GRID_SIZE; lat += GRID_SIZE) {
+    for (let lng = Math.floor(minLng/GRID_SIZE)*GRID_SIZE; lng <= maxLng + GRID_SIZE; lng += GRID_SIZE) {
+      const key = gridKey(lat, lng);
+      if (!spatialGrid[key]) spatialGrid[key] = [];
+      spatialGrid[key].push(seg);
+    }
+  }
+}
+
+function nearestStreetPointFast(lat, lng) {
+  let bestDist = Infinity;
+  let bestPoint = null;
+
+  // Check the cell containing the point and all 8 neighbors
+  const baseLat = Math.floor(lat / GRID_SIZE) * GRID_SIZE;
+  const baseLng = Math.floor(lng / GRID_SIZE) * GRID_SIZE;
+
+  for (let dLat = -GRID_SIZE; dLat <= GRID_SIZE; dLat += GRID_SIZE) {
+    for (let dLng = -GRID_SIZE; dLng <= GRID_SIZE; dLng += GRID_SIZE) {
+      const key = gridKey(baseLat + dLat, baseLng + dLng);
+      const segs = spatialGrid[key];
+      if (!segs) continue;
+      for (const seg of segs) {
+        const cp = closestPointOnSegment(lat, lng, seg.lat1, seg.lng1, seg.lat2, seg.lng2);
+        const d = haversine(lat, lng, cp.lat, cp.lng);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPoint = cp;
+        }
+      }
+    }
+  }
+
+  return { point: bestPoint, distance: bestDist };
+}
+
+// ─── Init map ───
+const map = L.map('map', { zoomControl: true }).setView([40.758, -73.985], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap', opacity: 0.7
+}).addTo(map);
+
+// ─── Fetch real street geometry from OpenStreetMap ───
+async function fetchStreets() {
+  const statusEl = document.getElementById('street-status');
+  const statusText = document.getElementById('street-status-text');
+
+  // Overpass query: get all streets in Manhattan with geometry
+  const query = `[out:json][timeout:60];
+    way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|service)$"]
+    (40.700,-74.025,40.882,-73.905);
+    out geom;`;
+
+  const endpoints = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
+  let data = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      statusText.textContent = `Trying ${new URL(endpoint).hostname}...`;
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(query),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      if (!resp.ok) continue;
+      data = await resp.json();
+      if (data.elements && data.elements.length > 0) break;
+    } catch (e) {
+      console.log('Failed:', endpoint, e.message);
+      continue;
+    }
+  }
+
+  if (!data || !data.elements || data.elements.length === 0) {
+    statusEl.className = 'error';
+    statusEl.innerHTML = '<span style="color:#ef4444">Failed to load street data. Check your internet connection and reload.</span>';
+    return;
+  }
+
+  // Parse way geometry into line segments
+  let segCount = 0;
+  const streetLines = []; // for visualization
+
+  data.elements.forEach(el => {
+    if (el.type !== 'way' || !el.geometry) return;
+    const coords = el.geometry.map(g => [g.lat, g.lon]);
+    streetLines.push(coords);
+
+    for (let i = 0; i < coords.length - 1; i++) {
+      const seg = {
+        lat1: coords[i][0], lng1: coords[i][1],
+        lat2: coords[i+1][0], lng2: coords[i+1][1],
+      };
+      streetSegments.push(seg);
+      addToGrid(seg);
+      segCount++;
+    }
+  });
+
+  // Draw streets on map (subtle yellow lines)
+  streetLines.forEach(coords => {
+    const line = L.polyline(coords, {
+      color: '#f59e0b', weight: 1.5, opacity: 0.35, interactive: false,
+    }).addTo(map);
+    streetLayers.push(line);
+  });
+
+  streetsLoaded = true;
+  statusEl.className = 'ready';
+  statusEl.innerHTML = `<span style="color:#4ade80">&#10003;</span> <span>${data.elements.length.toLocaleString()} streets loaded (${segCount.toLocaleString()} segments)</span>`;
+
+  // Enable snap buttons
+  document.getElementById('btn-snap-selected').disabled = false;
+  document.getElementById('btn-snap-all').disabled = false;
+
+  // Update info panel
+  document.getElementById('info-panel').innerHTML = `
+    <div>Select a neighborhood, then click <strong style="color:#a78bfa">Snap Selected</strong></div>
+    <div style="margin-top:4px">Or click <strong style="color:#a78bfa">Snap ALL</strong> to auto-align everything</div>
+    <div style="margin-top:8px"><span class="label" id="edit-count">0</span> neighborhoods snapped</div>
+  `;
+}
+
+// ─── Snap a single neighborhood's vertices to streets ───
+function snapHoodVertices(name) {
+  const d = hoodData[name];
+  let snappedCount = 0;
+
+  d.current = d.current.map((pt, i) => {
+    const result = nearestStreetPointFast(pt[0], pt[1]);
+    if (result.point && result.distance <= snapThreshold) {
+      snappedCount++;
+      snappedVertices.add(name + ':' + i);
+      return [result.point.lat, result.point.lng];
+    }
+    return pt; // keep original if too far from any street
+  });
+
+  if (snappedCount > 0) {
+    d.edited = true;
+  }
+
+  return snappedCount;
+}
+
+// ─── Snap selected neighborhood ───
+function snapSelected() {
+  if (!selectedHood || !streetsLoaded) return;
+  const count = snapHoodVertices(selectedHood);
+  const d = hoodData[selectedHood];
+
+  // Refresh map display
+  if (polyLayer) polyLayer.setLatLngs(d.current);
+  createVertexMarkers(d);
+  buildSidebar();
+  updateInfoPanel();
+
+  const total = d.current.length;
+  const kept = total - count;
+  alert(`Snapped ${count} of ${total} vertices to streets.\n${kept > 0 ? kept + ' vertices were beyond ' + snapThreshold + 'm from any street (kept original position).' : 'All vertices snapped!'}`);
+}
+
+// ─── Snap ALL neighborhoods ───
+function snapAll() {
+  if (!streetsLoaded) return;
+  let totalSnapped = 0;
+  let totalVerts = 0;
+  let hoodsSnapped = 0;
+
+  Object.keys(hoodData).forEach(name => {
+    const d = hoodData[name];
+    totalVerts += d.current.length;
+    const count = snapHoodVertices(name);
+    totalSnapped += count;
+    if (count > 0) hoodsSnapped++;
+  });
+
+  // Refresh everything
+  drawAllPolygons();
+  if (selectedHood) {
+    const d = hoodData[selectedHood];
+    if (polyLayer) polyLayer.setLatLngs(d.current);
+    createVertexMarkers(d);
+  }
+  buildSidebar();
+  updateInfoPanel();
+
+  alert(`Done! Snapped ${totalSnapped} of ${totalVerts} vertices across ${hoodsSnapped} neighborhoods.\n${totalVerts - totalSnapped} vertices were beyond ${snapThreshold}m from any street.`);
+}
+
+// ─── Threshold slider ───
+function updateThreshold() {
+  snapThreshold = parseInt(document.getElementById('snap-threshold').value);
+  document.getElementById('thresh-val').textContent = snapThreshold + 'm';
+}
+
+// ─── Load neighborhood data ───
+function init() {
+  if (typeof LOCALITY_BOUNDARIES === 'undefined') return;
+
+  Object.entries(LOCALITY_BOUNDARIES).forEach(([name, data]) => {
+    if (data.borough !== 'manhattan') return;
+    hoodData[name] = {
+      original: data.polygon.map(p => [p[0], p[1]]),
+      current: data.polygon.map(p => [p[0], p[1]]),
+      borough: data.borough,
+      center: data.center,
+      edited: false,
+    };
+  });
+
+  buildSidebar();
+  drawAllPolygons();
+
+  // Fetch street data in background
+  fetchStreets();
+}
+
+// ─── Sidebar ───
+function buildSidebar() {
+  const list = document.getElementById('hood-list');
+  const sorted = Object.keys(hoodData).sort();
+  list.innerHTML = sorted.map(name => {
+    const d = hoodData[name];
+    const cls = d.edited ? 'snapped' : 'original';
+    const statusText = d.edited ? 'snapped' : `${d.current.length} pts`;
+    return `<div class="hood-item" data-name="${name}" onclick="selectHood('${name.replace(/'/g, "\\'")}')">
+      <div>
+        <div class="hood-name">${name}</div>
+        <div class="hood-meta">${d.current.length} vertices</div>
+      </div>
+      <span class="hood-status ${cls}">${statusText}</span>
+    </div>`;
+  }).join('');
+}
+
+function filterList() {
+  const q = document.getElementById('hood-search').value.toLowerCase();
+  document.querySelectorAll('.hood-item').forEach(el => {
+    el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+// ─── Draw all polygons (context) ───
+function drawAllPolygons() {
+  contextLayers.forEach(l => map.removeLayer(l));
+  contextLayers = [];
+
+  Object.entries(hoodData).forEach(([name, d]) => {
+    if (name === selectedHood) return;
+    const layer = L.polygon(d.current, {
+      color: d.edited ? '#4ade80' : '#FF1493',
+      weight: 1.5,
+      fillColor: d.edited ? '#4ade80' : '#FF1493',
+      fillOpacity: 0.08,
+      opacity: 0.4,
+    }).addTo(map);
+    layer.bindTooltip(name, { sticky: true });
+    layer.on('click', () => selectHood(name));
+    contextLayers.push(layer);
+  });
+}
+
+// ─── Select neighborhood ───
+function selectHood(name) {
+  clearVertexMarkers();
+  if (polyLayer) { map.removeLayer(polyLayer); polyLayer = null; }
+  addVertexMode = false;
+  deleteVertexMode = false;
+  updateModeButtons();
+
+  selectedHood = name;
+  const d = hoodData[name];
+
+  document.querySelectorAll('.hood-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.name === name);
+  });
+
+  document.getElementById('btn-add-vertex').style.display = '';
+  document.getElementById('btn-delete-vertex').style.display = '';
+  document.getElementById('btn-revert').style.display = '';
+
+  drawAllPolygons();
+
+  polyLayer = L.polygon(d.current, {
+    color: '#FF1493', weight: 3, fillColor: '#FF1493', fillOpacity: 0.15,
+  }).addTo(map);
+
+  createVertexMarkers(d);
+  map.fitBounds(polyLayer.getBounds(), { padding: [80, 80], maxZoom: 17 });
+  updateInfoPanel();
+}
+
+// ─── Vertex markers ───
+function createVertexMarkers(d) {
+  clearVertexMarkers();
+
+  d.current.forEach((pt, i) => {
+    const vertKey = selectedHood + ':' + i;
+    const cls = snappedVertices.has(vertKey) ? 'snapped' : 'original';
+
+    const icon = L.divIcon({
+      className: 'vertex-marker',
+      html: `<div class="vertex-dot ${cls}" data-idx="${i}"></div>`,
+      iconSize: [14, 14], iconAnchor: [7, 7],
+    });
+
+    const marker = L.marker([pt[0], pt[1]], {
+      icon, draggable: true, zIndexOffset: 1000,
+    }).addTo(map);
+
+    marker._vertexIdx = i;
+    marker.bindTooltip(`Vertex ${i}<br>${pt[0].toFixed(5)}, ${pt[1].toFixed(5)}`, {
+      direction: 'top', offset: [0, -10],
+    });
+
+    marker.on('drag', function(e) {
+      const pos = e.target.getLatLng();
+      d.current[i] = [pos.lat, pos.lng];
+      polyLayer.setLatLngs(d.current);
+    });
+
+    marker.on('dragend', function(e) {
+      const pos = e.target.getLatLng();
+
+      // Auto-snap to nearest street if within threshold
+      if (streetsLoaded) {
+        const result = nearestStreetPointFast(pos.lat, pos.lng);
+        if (result.point && result.distance <= snapThreshold) {
+          d.current[i] = [result.point.lat, result.point.lng];
+          marker.setLatLng([result.point.lat, result.point.lng]);
+          snappedVertices.add(selectedHood + ':' + i);
+        } else {
+          d.current[i] = [pos.lat, pos.lng];
+          snappedVertices.delete(selectedHood + ':' + i);
+        }
+      } else {
+        d.current[i] = [pos.lat, pos.lng];
+      }
+
+      d.edited = true;
+      polyLayer.setLatLngs(d.current);
+
+      const dotEl = marker.getElement()?.querySelector('.vertex-dot');
+      if (dotEl) dotEl.className = 'vertex-dot snapped';
+
+      marker.setTooltipContent(`Vertex ${i}<br>${d.current[i][0].toFixed(5)}, ${d.current[i][1].toFixed(5)}`);
+      buildSidebar();
+      updateInfoPanel();
+    });
+
+    marker.on('click', function() {
+      if (deleteVertexMode && d.current.length > 3) {
+        d.current.splice(i, 1);
+        d.edited = true;
+        polyLayer.setLatLngs(d.current);
+        createVertexMarkers(d);
+        buildSidebar();
+        updateInfoPanel();
+      }
+    });
+
+    vertexMarkers.push(marker);
+  });
+}
+
+function clearVertexMarkers() {
+  vertexMarkers.forEach(m => map.removeLayer(m));
+  vertexMarkers = [];
+}
+
+// ─── Add / Delete vertex ───
+function toggleAddVertex() {
+  addVertexMode = !addVertexMode;
+  deleteVertexMode = false;
+  updateModeButtons();
+  if (addVertexMode && polyLayer) polyLayer.on('click', addVertexOnEdge);
+  else if (polyLayer) polyLayer.off('click', addVertexOnEdge);
+}
+
+function addVertexOnEdge(e) {
+  if (!addVertexMode || !selectedHood) return;
+  const d = hoodData[selectedHood];
+  const clickPt = [e.latlng.lat, e.latlng.lng];
+
+  let bestIdx = 0, bestDist = Infinity;
+  for (let i = 0; i < d.current.length; i++) {
+    const j = (i + 1) % d.current.length;
+    const dist = distToSegment(clickPt, d.current[i], d.current[j]);
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+
+  d.current.splice(bestIdx + 1, 0, clickPt);
+  d.edited = true;
+  polyLayer.setLatLngs(d.current);
+  createVertexMarkers(d);
+  buildSidebar();
+  updateInfoPanel();
+}
+
+function distToSegment(p, a, b) {
+  const dx = b[0]-a[0], dy = b[1]-a[1];
+  const lenSq = dx*dx + dy*dy;
+  if (lenSq === 0) return Math.hypot(p[0]-a[0], p[1]-a[1]);
+  let t = ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p[0]-(a[0]+t*dx), p[1]-(a[1]+t*dy));
+}
+
+function toggleDeleteVertex() {
+  deleteVertexMode = !deleteVertexMode;
+  addVertexMode = false;
+  updateModeButtons();
+  if (polyLayer) polyLayer.off('click', addVertexOnEdge);
+}
+
+function updateModeButtons() {
+  document.getElementById('btn-add-vertex').classList.toggle('active', addVertexMode);
+  document.getElementById('btn-delete-vertex').classList.toggle('active', deleteVertexMode);
+}
+
+// ─── Revert ───
+function revertCurrent() {
+  if (!selectedHood) return;
+  const d = hoodData[selectedHood];
+  d.current = d.original.map(p => [p[0], p[1]]);
+  d.edited = false;
+  // Clear snapped tracking for this hood
+  d.current.forEach((_, i) => snappedVertices.delete(selectedHood + ':' + i));
+  polyLayer.setLatLngs(d.current);
+  createVertexMarkers(d);
+  buildSidebar();
+  updateInfoPanel();
+}
+
+// ─── Info panel ───
+function updateInfoPanel() {
+  const editedCount = Object.values(hoodData).filter(d => d.edited).length;
+  const totalHoods = Object.keys(hoodData).length;
+
+  const panel = document.getElementById('info-panel');
+  if (selectedHood) {
+    const d = hoodData[selectedHood];
+    const snappedCount = d.current.filter((_, i) => snappedVertices.has(selectedHood + ':' + i)).length;
+    panel.innerHTML = `
+      <div><span class="label">${selectedHood}</span> — ${d.current.length} vertices</div>
+      <div style="margin-top:4px;color:${snappedCount > 0 ? '#4ade80' : '#aaa'}">
+        ${snappedCount > 0 ? `${snappedCount} / ${d.current.length} vertices snapped to streets` : 'Not yet snapped'}
+      </div>
+      <div style="margin-top:8px"><span class="label">${editedCount}</span> / ${totalHoods} neighborhoods snapped</div>
+    `;
+  } else {
+    panel.innerHTML = `
+      <div>Select a neighborhood or use <strong style="color:#a78bfa">Snap ALL</strong></div>
+      <div style="margin-top:8px"><span class="label">${editedCount}</span> / ${totalHoods} neighborhoods snapped</div>
+    `;
+  }
+}
+
+// ─── View ───
+function resetView() { map.setView([40.758, -73.985], 13); }
+
+// ─── Export ───
+function exportBoundaries() {
+  const lines = ['const LOCALITY_BOUNDARIES = {'];
+  const names = Object.keys(hoodData).sort();
+  names.forEach((name, idx) => {
+    const d = hoodData[name];
+    const polyStr = d.current.map(p => `[${p[0].toFixed(5)},${p[1].toFixed(5)}]`).join(',');
+    const comma = idx < names.length - 1 ? ',' : '';
+    lines.push(`  "${name}": {`);
+    lines.push(`    borough: "${d.borough}",`);
+    lines.push(`    center: [${d.center[0]}, ${d.center[1]}],`);
+    lines.push(`    polygon: [${polyStr}]`);
+    lines.push(`  }${comma}`);
+  });
+  lines.push('};');
+  lines.push('');
+  lines.push("if (typeof module !== 'undefined' && module.exports) {");
+  lines.push('  module.exports = LOCALITY_BOUNDARIES;');
+  lines.push('}');
+
+  document.getElementById('export-textarea').value = lines.join('\n');
+  document.getElementById('export-modal').classList.add('active');
+}
+
+function copyExport() {
+  const text = document.getElementById('export-textarea').value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(() => {
+      const ta = document.getElementById('export-textarea');
+      ta.select();
+      document.execCommand('copy');
+      alert('Copied to clipboard (fallback)!');
+    });
+  } else {
+    const ta = document.getElementById('export-textarea');
+    ta.select();
+    document.execCommand('copy');
+    alert('Copied to clipboard!');
+  }
+}
+
+function downloadExport() {
+  const text = document.getElementById('export-textarea').value;
+  const blob = new Blob([text], { type: 'text/javascript' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'locality-boundaries.js';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Start ───
+init();
+</script>
+</body>
+</html>

@@ -121,7 +121,118 @@ function polygonToSVGPath(pts) {
   return 'M' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z';
 }
 
-// ─── Manhattan street grid generator ─────────────────────────
+// ─── Real OSM street fetcher ─────────────────────────────────
+// Fetches actual street geometry from OpenStreetMap Overpass API
+// and renders as SVG paths behind neighborhoods. Falls back to
+// the mathematical grid if the fetch fails.
+let osmStreetData = null;
+
+async function fetchOSMStreets() {
+  const cacheKey = 'cty-osm-streets-v1';
+  // Check sessionStorage cache first
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      osmStreetData = JSON.parse(cached);
+      return osmStreetData;
+    }
+  } catch(e) { /* ignore cache errors */ }
+
+  const query = `[out:json][timeout:60];
+    way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified)$"]
+    (40.700,-74.025,40.882,-73.905);
+    out geom;`;
+
+  const endpoints = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(query),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (data.elements && data.elements.length > 0) {
+        // Convert to GeoJSON FeatureCollection
+        const features = [];
+        data.elements.forEach(el => {
+          if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
+          const coords = el.geometry.map(g => [g.lon, g.lat]);
+          const hwType = el.tags?.highway || 'residential';
+          features.push({
+            type: 'Feature',
+            properties: {
+              name: el.tags?.name || '',
+              highway: hwType,
+              type: (hwType === 'motorway' || hwType === 'trunk' || hwType === 'primary') ? 'avenue' : 'street',
+            },
+            geometry: { type: 'LineString', coordinates: coords }
+          });
+        });
+
+        osmStreetData = { type: 'FeatureCollection', features };
+
+        // Cache in sessionStorage
+        try { sessionStorage.setItem(cacheKey, JSON.stringify(osmStreetData)); }
+        catch(e) { /* storage full, skip cache */ }
+
+        return osmStreetData;
+      }
+    } catch(e) {
+      console.log('OSM fetch failed:', endpoint, e.message);
+      continue;
+    }
+  }
+
+  return null; // all endpoints failed
+}
+
+// Render real OSM streets onto the D3 SVG map
+function renderOSMStreets(streetGeoJSON, pathFn, group) {
+  if (!streetGeoJSON || !streetGeoJSON.features) return;
+
+  // Remove old mathematical grid if present
+  group.selectAll('.street-grid').remove();
+  group.selectAll('.street-line').remove();
+
+  // Insert before .nta-path so streets render behind neighborhoods
+  // Fall back to append if NTA paths don't exist yet
+  const firstNTA = group.select('.nta-path').node();
+  const streetGroup = firstNTA
+    ? group.insert('g', '.nta-path').attr('class', 'street-grid osm-streets')
+    : group.append('g').attr('class', 'street-grid osm-streets');
+
+  streetGroup.selectAll('.street-line')
+    .data(streetGeoJSON.features)
+    .enter()
+    .append('path')
+    .attr('class', d => 'street-line street-' + d.properties.type)
+    .attr('d', pathFn)
+    .style('fill', 'none')
+    .style('stroke', d => {
+      const hw = d.properties.highway;
+      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.10)';
+      if (hw === 'primary') return 'rgba(255,255,255,0.08)';
+      if (hw === 'secondary') return 'rgba(255,255,255,0.06)';
+      return 'rgba(255,255,255,0.04)';
+    })
+    .style('stroke-width', d => {
+      const hw = d.properties.highway;
+      if (hw === 'motorway' || hw === 'trunk') return 0.6;
+      if (hw === 'primary') return 0.45;
+      if (hw === 'secondary' || hw === 'tertiary') return 0.3;
+      return 0.2;
+    })
+    .style('pointer-events', 'none');
+}
+
+// ─── Mathematical street grid (fallback) ────────────────────
 // Generates approximate GeoJSON LineStrings for Manhattan's major
 // avenues and cross streets using a mathematical model of the grid.
 // Grid is tilted ~29° east of true north.
@@ -310,13 +421,28 @@ function initHoodMap() {
       mapGroup.selectAll('.sub-path')
         .style('stroke-width', Math.max(0.15, 0.4 / k));
 
-      // Street grid — show more detail when zoomed in
+      // Street grid — scale with zoom, show more detail when zoomed in
       mapGroup.selectAll('.street-line')
         .style('stroke-width', d => {
-          const base = d.properties.type === 'avenue' ? 0.4 : 0.25;
+          if (!d || !d.properties) return 0.2 / k;
+          const hw = d.properties.highway;
+          let base;
+          if (hw === 'motorway' || hw === 'trunk') base = 0.6;
+          else if (hw === 'primary') base = 0.45;
+          else if (hw === 'secondary' || hw === 'tertiary') base = 0.3;
+          else if (d.properties.type === 'avenue') base = 0.4;
+          else base = 0.2;
           return base / k;
         })
-        .style('stroke-opacity', Math.min(1, 0.4 + (k - 1) * 0.15));
+        .style('stroke-opacity', d => {
+          if (!d || !d.properties) return Math.min(1, 0.4 + (k - 1) * 0.15);
+          const hw = d.properties.highway;
+          // Residential streets only show when zoomed in enough
+          if (hw === 'residential' || hw === 'unclassified') {
+            return k > 3 ? Math.min(0.8, (k - 3) * 0.2) : 0;
+          }
+          return Math.min(1, 0.5 + (k - 1) * 0.15);
+        });
 
       // All labels — collision detection to hide overlapping ones
       const subFontSize = Math.max(1.5, 3 / k);
@@ -426,11 +552,12 @@ function initHoodMap() {
       .style('stroke', 'rgba(255,255,255,0.04)')
       .style('stroke-width', 0.3);
 
-    // Draw Manhattan street grid (subtle, behind neighborhoods)
-    const streetData = generateManhattanStreets();
+    // Draw Manhattan street grid — try real OSM data first, fall back to mathematical grid
+    // Render fallback grid immediately (will be replaced if OSM fetch succeeds)
+    const fallbackData = generateManhattanStreets();
     const streetGroup = mapGroup.append('g').attr('class', 'street-grid');
     streetGroup.selectAll('.street-line')
-      .data(streetData.features)
+      .data(fallbackData.features)
       .enter()
       .append('path')
       .attr('class', d => 'street-line street-' + d.properties.type)
@@ -439,6 +566,16 @@ function initHoodMap() {
       .style('stroke', d => d.properties.type === 'avenue' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)')
       .style('stroke-width', d => d.properties.type === 'avenue' ? 0.4 : 0.25)
       .style('pointer-events', 'none');
+
+    // Fetch real OSM streets in the background and replace the fallback
+    fetchOSMStreets().then(osmData => {
+      if (osmData) {
+        renderOSMStreets(osmData, hoodPath, mapGroup);
+        console.log('OSM streets loaded:', osmData.features.length, 'streets');
+      } else {
+        console.log('Using fallback mathematical street grid');
+      }
+    });
 
     // Draw Central Park as a special green feature
     if (centralParkFeature) {
@@ -557,7 +694,7 @@ function initHoodMap() {
       'MN-Manhattanville': 'Manhattanville',
       'MN-HamiltonHts': 'Hamilton Heights', 'MN-SugarHill': 'Sugar Hill',
       'MN-Harlem': 'Harlem',
-      // MN-SpanishHarlem and MN1101-N share the East Harlem NTA — use Voronoi fallback
+      'MN-SpanishHarlem': 'East Harlem',
     };
 
     // Convert a locality polygon [lat, lng] array to a GeoJSON feature
@@ -622,8 +759,8 @@ function initHoodMap() {
           .attr('data-nta', ntaCode)
           .style('fill', subFill)
           .style('fill-opacity', 0.22)
-          .style('stroke', 'rgba(255,255,255,0.15)')
-          .style('stroke-width', 0.5)
+          .style('stroke', 'rgba(255,255,255,0.25)')
+          .style('stroke-width', 1.0)
           .style('cursor', 'pointer')
           .on('click', function(event) {
             event.stopPropagation();
@@ -739,17 +876,26 @@ function initHoodMap() {
       }
     });
 
-    // ─── Priority reorder: smaller sub-paths on top ─────────────
-    // Sort sub-path SVG elements by area (largest first = behind, smallest last = on top)
+    // ─── Priority reorder: use NEIGHBORHOOD_PRIORITY from overlap resolver ───
+    // Higher priority number = rendered on top (wins overlap conflicts)
+    // Falls back to area-based sort for neighborhoods without priority data
+    const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
     const subPathNodes = mapGroup.selectAll('.sub-path').nodes();
     if (subPathNodes.length > 1) {
-      const withArea = subPathNodes.map(node => ({
-        node,
-        area: svgPolyArea(node)
-      }));
-      // Sort descending by area so largest is first (painted first = behind)
-      withArea.sort((a, b) => b.area - a.area);
-      withArea.forEach(item => {
+      const withPriority = subPathNodes.map(node => {
+        const subId = d3.select(node).attr('data-sub-id');
+        const priority = hasPriority && NEIGHBORHOOD_PRIORITY[subId]
+          ? NEIGHBORHOOD_PRIORITY[subId]
+          : 0; // no priority = draw first (behind everything)
+        return { node, subId, priority, area: svgPolyArea(node) };
+      });
+      // Sort ascending by priority (lowest first = painted first = behind)
+      // For ties, larger area goes behind
+      withPriority.sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        return b.area - a.area;
+      });
+      withPriority.forEach(item => {
         item.node.parentNode.appendChild(item.node);
       });
     }
@@ -902,21 +1048,25 @@ function refreshMapColors() {
     }
   });
 
-  // Sub-neighborhood paths — compute areas and identify overlapping large ones
+  // Sub-neighborhood paths — use priority data for overlap detection
+  const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
   const subNodes = [];
   mapGroup.selectAll('.sub-path').each(function() {
     const el = d3.select(this);
     const subId = el.attr('data-sub-id');
     const area = svgPolyArea(this);
     const bbox = this.getBBox ? this.getBBox() : null;
-    subNodes.push({ el, subId, area, bbox, node: this });
+    const priority = hasPriority && NEIGHBORHOOD_PRIORITY[subId]
+      ? NEIGHBORHOOD_PRIORITY[subId] : 0;
+    subNodes.push({ el, subId, area, bbox, priority, node: this });
   });
 
-  // Mark sub-paths that are overlapped by smaller ones
+  // Mark sub-paths that have higher-priority neighbors overlapping them
+  // A path is "overlapped" if a higher-priority path's bbox intersects it
   subNodes.forEach(entry => {
     const isOverlapped = entry.bbox && subNodes.some(other =>
       other.subId !== entry.subId &&
-      other.area < entry.area &&
+      other.priority > entry.priority &&
       other.bbox &&
       !(other.bbox.x > entry.bbox.x + entry.bbox.width ||
         other.bbox.x + other.bbox.width < entry.bbox.x ||
@@ -947,8 +1097,8 @@ function refreshMapColors() {
       entry.el.style('fill', subFill).style('fill-opacity', 0.04)
         .style('stroke', 'rgba(255,255,255,0.06)').style('stroke-width', 0.5);
     } else {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.18)
-        .style('stroke', 'rgba(255,255,255,0.15)').style('stroke-width', 0.8);
+      entry.el.style('fill', subFill).style('fill-opacity', 0.22)
+        .style('stroke', 'rgba(255,255,255,0.25)').style('stroke-width', 1.0);
     }
   });
 }
