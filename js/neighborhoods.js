@@ -701,6 +701,8 @@ function initHoodMap() {
     function localityToGeoJSON(polygon) {
       // locality-boundaries uses [lat, lng]; GeoJSON needs [lng, lat]
       const coords = polygon.map(p => [p[1], p[0]]);
+      // Reverse winding order so D3 treats it as interior, not complement
+      coords.reverse();
       // Close the ring if not already closed
       if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
         coords.push([...coords[0]]);
