@@ -1,10 +1,10 @@
 /* ============================================
    CTY - Neighborhoods Page Stylesheet
-   Leaflet Tile Map + Cards Grid + Detail Popup
+   Mapbox GL JS Map + Cards Grid + Detail Popup
    ============================================ */
 
 /* ============================================
-   MAP CONTAINER (rotated for vertical Manhattan)
+   MAP CONTAINER (Mapbox GL handles rotation natively via bearing)
    ============================================ */
 
 .hood-map-wrap {
@@ -15,36 +15,24 @@
   margin-bottom: 32px;
   position: relative;
   overflow: hidden;
-  /* Height matches the visible area — the inner container expands
-     slightly to fill corners exposed by the CSS rotation */
   min-height: 400px;
   height: 600px;
 }
 
 #hood-map-container {
-  /* JS will set width/height/transform for rotation */
+  width: 100%;
+  height: 100%;
   border-radius: 0;
-  overflow: hidden;
-  background: #0A0A0A;
 }
 
-/* Leaflet tile pane — full brightness so streets & labels are readable */
-#hood-map-container .leaflet-tile-pane {
-  opacity: 1;
-}
-
-/* Hide Leaflet attribution for clean look */
-#hood-map-container .leaflet-control-attribution {
-  display: none;
-}
-
-/* Smooth polygon transitions via SVG CSS */
-.leaflet-overlay-pane svg path {
-  transition: fill-opacity 0.2s ease, stroke 0.2s ease, stroke-width 0.2s ease;
+/* Hide Mapbox attribution/logo for clean look */
+#hood-map-container .mapboxgl-ctrl-attrib,
+#hood-map-container .mapboxgl-ctrl-logo {
+  display: none !important;
 }
 
 /* ============================================
-   ZOOM CONTROLS (counter-rotated to stay upright)
+   ZOOM CONTROLS (no counter-rotation needed — bearing is native)
    ============================================ */
 
 .map-zoom-controls {
@@ -55,8 +43,6 @@
   flex-direction: column;
   gap: 4px;
   z-index: 10;
-  /* Counter-rotate so buttons stay upright while map is rotated */
-  transform: rotate(29deg);
 }
 
 .zoom-btn {

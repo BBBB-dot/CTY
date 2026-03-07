@@ -1,5 +1,5 @@
-// Neighborhoods Page — Leaflet Tile Map with CartoDB Dark base
-// Replaces previous D3 SVG implementation with real street tiles
+// Neighborhoods Page — Mapbox GL JS with dark-v11 style
+// Native bearing rotation for vertical Manhattan, feature-state for polygon styling
 
 let currentFilter = 'all';
 let currentSearch = '';
@@ -7,11 +7,20 @@ let currentHoodId = null;
 let hoodGeoData = null;
 let hoodMapReady = false;
 
-// Leaflet map references
+// Mapbox GL map reference
 let hoodMap = null;
-let hoodPolygonLayers = {};   // subId/ntaCode → L.polygon
-let hoodBgLayers = [];        // background NTA shapes
-let centralParkLayer = null;
+
+// Lookup tables built at render time
+let featureBounds = {};        // hoodId → [[sw_lng,sw_lat],[ne_lng,ne_lat]]
+let ntaIdMap = {};             // ntaCode → numeric id (for feature-state)
+let localityIdMap = {};        // subId  → numeric id (for feature-state)
+let ntaFillColors = {};        // ntaCode → hex color
+let localityFillColors = {};   // subId  → hex color
+let hoveredNTAId = null;
+let hoveredLocalityId = null;
+
+// Mapbox token (same as explorer page)
+const MAPBOX_TOKEN = 'pk.eyJ1IjoiYnJpc2ticmlzayIsImEiOiJjbThlc3g0cWgwN3Q3MnFxMmFuZnEwdm9mIn0.YVm7Rk3K4RiWMFR3ZUdOSA';
 
 // ─── Borough color fill ─────────────────────────────────────────
 // Subtle lightness variation within each borough — keeps neighborhoods
@@ -70,7 +79,7 @@ function getSubsForNTA(ntaCode) {
   return NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === ntaCode);
 }
 
-// ─── Polygon area (shoelace) for lat/lng arrays ─────────────────
+// ─── Polygon area (shoelace) for coordinate arrays ──────────────
 function latlngPolyArea(coords) {
   let area = 0;
   for (let i = 0; i < coords.length; i++) {
@@ -121,75 +130,78 @@ const SUB_TO_LOCALITY = {
   'MN-SpanishHarlem': 'East Harlem',
 };
 
-// ─── Map rotation (degrees east of north) ────────────────────────
-// Manhattan's street grid runs ~29° east of true north. Rotating the
-// map by this amount makes the island vertical — the classic NYC
-// subway-map orientation.
-const MAP_ROTATION_DEG = -29;
+// ─── Compute bounding box from GeoJSON geometry ─────────────────
+function geoBBox(geometry) {
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  function processCoord(c) {
+    if (c[0] < minLng) minLng = c[0];
+    if (c[0] > maxLng) maxLng = c[0];
+    if (c[1] < minLat) minLat = c[1];
+    if (c[1] > maxLat) maxLat = c[1];
+  }
+  if (geometry.type === 'Polygon') {
+    geometry.coordinates.forEach(ring => ring.forEach(processCoord));
+  } else if (geometry.type === 'MultiPolygon') {
+    geometry.coordinates.forEach(poly => poly.forEach(ring => ring.forEach(processCoord)));
+  }
+  return [[minLng, minLat], [maxLng, maxLat]];
+}
 
-// ─── Load GeoJSON + render Leaflet map ──────────────────────────
+// ─── Hex color to rgba string ───────────────────────────────────
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ─── Initialize Mapbox GL map ───────────────────────────────────
 function initHoodMap() {
   if (hoodMapReady) return;
 
   const container = document.getElementById('hood-map-container');
   if (!container) return;
 
-  // Ensure container has height for Leaflet
-  if (!container.style.height) {
-    const w = container.clientWidth || 900;
-    container.style.height = Math.round(w * 0.85) + 'px';
-  }
+  mapboxgl.accessToken = MAPBOX_TOKEN;
 
-  // CSS rotation for vertical Manhattan. Expand container to 150%
-  // so rotated corners are clipped by the wrapper's overflow:hidden.
-  container.style.transform = `rotate(${MAP_ROTATION_DEG}deg)`;
-  container.style.transformOrigin = 'center center';
-  container.style.width = '150%';
-  container.style.height = '150%';
-  container.style.marginLeft = '-25%';
-  container.style.marginTop = '-25%';
-
-  // Create Leaflet map
-  hoodMap = L.map('hood-map-container', {
-    zoomControl: false,
-    attributionControl: false,
+  // Create Mapbox GL map with native bearing for vertical Manhattan
+  hoodMap = new mapboxgl.Map({
+    container: 'hood-map-container',
+    style: 'mapbox://styles/mapbox/dark-v11',
+    center: [-73.985, 40.758],
+    zoom: 11.5,
+    bearing: 29,           // Native rotation — Manhattan vertical, no CSS hacks
+    pitch: 0,
     minZoom: 10,
     maxZoom: 18,
-  }).setView([40.758, -73.985], 12);
+    attributionControl: false,
+  });
 
-  // CartoDB Dark Matter with labels — readable streets & landmarks
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    subdomains: 'abcd',
-  }).addTo(hoodMap);
+  // Disable rotation interaction (we want fixed bearing)
+  hoodMap.dragRotate.disable();
+  hoodMap.touchZoomRotate.disableRotation();
 
-  // Load NTA GeoJSON for borough boundaries
-  d3.json('data/nyc-neighborhoods.json').then(function(geo) {
-    hoodGeoData = geo;
-    renderLeafletMap(geo);
-    hoodMapReady = true;
-  }).catch(function(err) {
-    console.error('GeoJSON load error:', err);
-    // Even without GeoJSON, render locality boundaries
-    renderLocalityOnly();
-    hoodMapReady = true;
+  hoodMap.on('load', function() {
+    // Load NTA GeoJSON
+    fetch('data/nyc-neighborhoods.json')
+      .then(r => r.json())
+      .then(geo => {
+        hoodGeoData = geo;
+        renderMapboxMap(geo);
+        hoodMapReady = true;
+      })
+      .catch(err => {
+        console.error('GeoJSON load error:', err);
+        renderLocalityOnly();
+        hoodMapReady = true;
+      });
   });
 }
 
-// ─── Render all layers onto the Leaflet map ─────────────────────
-function renderLeafletMap(geo) {
-  const ntaPaths = [];
+// ─── Render all layers onto the Mapbox GL map ───────────────────
+function renderMapboxMap(geo) {
+  const ntaFeatures = [];
   let centralParkFeature = null;
-
-  geo.features.forEach(f => {
-    const code = NTA_NAME_TO_CODE[f.properties.name];
-    if (f.properties.name === 'Central Park') {
-      centralParkFeature = f;
-    } else if (f.properties.ntatype === '0' && code) {
-      f.properties.ntaCode = code;
-      ntaPaths.push(f);
-    }
-  });
 
   // Track which NTAs have subs
   const ntasWithSubs = {};
@@ -199,89 +211,157 @@ function renderLeafletMap(geo) {
 
   // Borough color index for variation
   const boroughCounts = {};
-  ntaPaths.forEach(f => {
-    const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
-    if (!boroughCounts[boro]) boroughCounts[boro] = 0;
-    boroughCounts[boro]++;
-  });
-  const boroughIdx = {};
+  const ntaPaths = [];
 
-  // ─── 1. Background NTA shapes ───
-  // NTAs with subs: faint backdrop; NTAs without subs: interactive polygons
+  geo.features.forEach(f => {
+    const code = NTA_NAME_TO_CODE[f.properties.name];
+    if (f.properties.name === 'Central Park') {
+      centralParkFeature = f;
+    } else if (f.properties.ntatype === '0' && code) {
+      f.properties.ntaCode = code;
+      ntaPaths.push(f);
+      const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
+      if (!boroughCounts[boro]) boroughCounts[boro] = 0;
+      boroughCounts[boro]++;
+    }
+  });
+
+  const boroughIdx = {};
+  let ntaNumId = 1;
+
   ntaPaths.forEach(f => {
     const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
     if (!boroughIdx[boro]) boroughIdx[boro] = 0;
     const idx = boroughIdx[boro]++;
     const total = boroughCounts[boro];
     const fill = getNTAFill(f.properties.ntaCode, boro, idx, total);
-    f.properties._fill = fill;
-    f.properties._boro = boro;
 
     const hasSubs = ntasWithSubs[f.properties.ntaCode];
-    const latlngs = geoJSONToLatLngs(f.geometry);
-    if (!latlngs) return;
+    const id = ntaNumId++;
 
-    // Start invisible — only visited/lived will get color via refreshMapColors()
-    const layer = L.polygon(latlngs, {
-      color: 'transparent',
-      weight: 0,
-      fillColor: fill,
-      fillOpacity: 0,
-      interactive: !hasSubs,
-    }).addTo(hoodMap);
+    // Store mappings
+    ntaIdMap[f.properties.ntaCode] = id;
+    ntaFillColors[f.properties.ntaCode] = fill;
 
-    if (!hasSubs) {
-      const code = f.properties.ntaCode;
-      layer.on('click', function() { openHoodDetail(code); });
-      layer.on('mouseover', function(e) {
-        showHoodTooltipLeaflet(e, code);
-        // Subtle hover outline — don't fill unless visited/lived
-        const status = getNeighborhoodStatus(code);
-        if (status === 'lived' || status === 'visited') {
-          layer.setStyle({ ...STYLE.hover, fillColor: fill, fillOpacity: STYLE.hover.fillOpacity + 0.15 });
-        } else {
-          layer.setStyle({ ...STYLE.hover, fillColor: fill });
-        }
-      });
-      layer.on('mouseout', function() {
-        hideHoodTooltip();
-        refreshSingleLayer(code);
-      });
-      hoodPolygonLayers[code] = layer;
-    }
-    hoodBgLayers.push({ layer, feature: f, hasSubs });
+    // Store bounds for card-click zoom
+    featureBounds[f.properties.ntaCode] = geoBBox(f.geometry);
+
+    // Build feature with numeric id for feature-state
+    ntaFeatures.push({
+      type: 'Feature',
+      id: id,
+      properties: {
+        ntaCode: f.properties.ntaCode,
+        borough: boro,
+        fill: fill,
+        hasSubs: hasSubs ? 1 : 0,
+        name: f.properties.name,
+      },
+      geometry: f.geometry,
+    });
+  });
+
+  // ─── 1. NTA polygon source + layers ───
+  hoodMap.addSource('nta-polygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: ntaFeatures },
+    generateId: false,  // we set ids manually
+  });
+
+  // NTA fill layer — only interactive for NTAs WITHOUT subs
+  hoodMap.addLayer({
+    id: 'nta-fill',
+    type: 'fill',
+    source: 'nta-polygons',
+    filter: ['==', ['get', 'hasSubs'], 0],
+    paint: {
+      'fill-color': ['get', 'fill'],
+      'fill-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        ['case',
+          ['any',
+            ['==', ['feature-state', 'status'], 'lived'],
+            ['==', ['feature-state', 'status'], 'visited']
+          ], 0.27,
+          0.12
+        ],
+        ['==', ['feature-state', 'status'], 'lived'], 0.55,
+        ['==', ['feature-state', 'status'], 'visited'], 0.40,
+        0
+      ],
+    },
+  });
+
+  hoodMap.addLayer({
+    id: 'nta-line',
+    type: 'line',
+    source: 'nta-polygons',
+    filter: ['==', ['get', 'hasSubs'], 0],
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false], 'rgba(255,255,255,0.35)',
+        ['==', ['feature-state', 'status'], 'lived'], 'rgba(255,255,255,0.28)',
+        ['==', ['feature-state', 'status'], 'visited'], 'rgba(255,255,255,0.18)',
+        'transparent'
+      ],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false], 1.2,
+        ['==', ['feature-state', 'status'], 'lived'], 1.0,
+        ['==', ['feature-state', 'status'], 'visited'], 0.8,
+        0
+      ],
+    },
   });
 
   // ─── 2. Central Park ───
   if (centralParkFeature) {
-    const latlngs = geoJSONToLatLngs(centralParkFeature.geometry);
-    if (latlngs) {
-      centralParkLayer = L.polygon(latlngs, {
-        color: 'rgba(125,175,107,0.4)',
-        weight: 1,
-        fillColor: '#2d5a3a',
-        fillOpacity: 0.55,
-      }).addTo(hoodMap);
-      centralParkLayer.on('click', function() { openHoodDetail('MN-CentralPark'); });
-      centralParkLayer.on('mouseover', function(e) { showHoodTooltipLeaflet(e, 'MN-CentralPark'); });
-      centralParkLayer.on('mouseout', hideHoodTooltip);
-    }
+    hoodMap.addSource('central-park', {
+      type: 'geojson',
+      data: centralParkFeature,
+    });
+
+    hoodMap.addLayer({
+      id: 'central-park-fill',
+      type: 'fill',
+      source: 'central-park',
+      paint: {
+        'fill-color': '#2d5a3a',
+        'fill-opacity': 0.55,
+      },
+    });
+
+    hoodMap.addLayer({
+      id: 'central-park-line',
+      type: 'line',
+      source: 'central-park',
+      paint: {
+        'line-color': 'rgba(125,175,107,0.4)',
+        'line-width': 1,
+      },
+    });
   }
 
-  // ─── 3. Sub-neighborhood polygons from LOCALITY_BOUNDARIES ───
+  // ─── 3. Locality (sub-neighborhood) polygons ───
   renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts);
 
-  // ─── 4. Apply visited/lived colors ───
+  // ─── 4. Apply visited/lived status via feature-state ───
   refreshMapColors();
+
+  // ─── 5. Event handlers ───
+  setupMapEvents();
 }
 
 // ─── Render locality-only (fallback if no GeoJSON) ──────────────
 function renderLocalityOnly() {
   renderLocalityPolygons([], {}, {});
   refreshMapColors();
+  setupMapEvents();
 }
 
-// ─── Render sub-neighborhood polygons with priority z-ordering ──
+// ─── Build locality GeoJSON and add as source + layers ──────────
 function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
   const hasLocality = typeof LOCALITY_BOUNDARIES !== 'undefined';
   const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
@@ -319,15 +399,14 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
     });
   });
 
-  // Also check for locality polygons that match neighborhoods not in NTA system
-  // (e.g., islands, standalone areas)
+  // Also check for locality polygons not in NTA system
   NEIGHBORHOODS.forEach(hood => {
     if (hood.borough !== 'manhattan') return;
-    if (hoodPolygonLayers[hood.id]) return; // already rendered as NTA
+    if (ntaIdMap[hood.id]) return; // already rendered as NTA
     const localityName = SUB_TO_LOCALITY[hood.id];
     const localityData = localityName ? LOCALITY_BOUNDARIES[localityName] : null;
     if (!localityData || !localityData.polygon) return;
-    if (subEntries.some(e => e.subId === hood.id)) return; // already queued
+    if (subEntries.some(e => e.subId === hood.id)) return;
 
     const priority = hasPriority && NEIGHBORHOOD_PRIORITY[hood.id]
       ? NEIGHBORHOOD_PRIORITY[hood.id] : 0;
@@ -344,84 +423,207 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
     });
   });
 
-  // Sort by priority ascending (lowest first → added to map first → behind)
-  // For ties, larger area behind
+  // Sort by priority ascending (lowest first → rendered behind in source order)
   subEntries.sort((a, b) => {
     if (a.priority !== b.priority) return a.priority - b.priority;
     return latlngPolyArea(b.polygon) - latlngPolyArea(a.polygon);
   });
 
-  // Render each sub-neighborhood polygon
+  // Build GeoJSON FeatureCollection — flip [lat,lng] → [lng,lat]
+  const localityFeatures = [];
+  let localityNumId = 1;
+
   subEntries.forEach(entry => {
-    // Convert [lat, lng] polygon to Leaflet-compatible format
-    const latlngs = entry.polygon.map(p => [p[0], p[1]]);
-    // Use borough base color directly — subtle variation comes from getNTAFill
+    const id = localityNumId++;
     const subFill = getBoroughColor(entry.borough);
 
-    // Use pane with z-index based on priority for stacking order
-    const paneName = 'sub-' + entry.priority;
-    if (!hoodMap.getPane(paneName)) {
-      hoodMap.createPane(paneName);
-      hoodMap.getPane(paneName).style.zIndex = 400 + entry.priority;
+    // Flip [lat,lng] → [lng,lat] for GeoJSON
+    const coordinates = [entry.polygon.map(p => [p[1], p[0]])];
+    // Close the ring if not already closed
+    const ring = coordinates[0];
+    if (ring.length > 0) {
+      const first = ring[0], last = ring[ring.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        ring.push([first[0], first[1]]);
+      }
     }
 
-    // Start invisible — refreshMapColors() will light up visited/lived
-    const layer = L.polygon(latlngs, {
-      pane: paneName,
-      color: 'transparent',
-      weight: 0,
-      fillColor: subFill,
-      fillOpacity: 0,
-      interactive: true,
-    }).addTo(hoodMap);
+    localityIdMap[entry.subId] = id;
+    localityFillColors[entry.subId] = subFill;
 
-    layer._subFill = subFill;
-    layer._subId = entry.subId;
-    layer._borough = entry.borough;
-    layer._priority = entry.priority;
+    // Compute and store bounds
+    const bbox = geoBBox({ type: 'Polygon', coordinates });
+    featureBounds[entry.subId] = bbox;
 
-    layer.on('click', function() {
-      openHoodDetail(entry.subId);
-      hoodMap.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 15 });
+    localityFeatures.push({
+      type: 'Feature',
+      id: id,
+      properties: {
+        subId: entry.subId,
+        borough: entry.borough,
+        fill: subFill,
+        priority: entry.priority,
+        name: entry.hood.name,
+      },
+      geometry: {
+        type: 'Polygon',
+        coordinates: coordinates,
+      },
     });
+  });
 
-    layer.on('mouseover', function(e) {
-      showHoodTooltipLeaflet(e, entry.subId);
-      const status = getNeighborhoodStatus(entry.subId);
-      if (status === 'lived' || status === 'visited') {
-        layer.setStyle({ ...STYLE.hover, fillColor: subFill, fillOpacity: STYLE.hover.fillOpacity + 0.15 });
-      } else {
-        layer.setStyle({ ...STYLE.hover, fillColor: subFill });
-      }
-    });
+  if (localityFeatures.length === 0) return;
 
-    layer.on('mouseout', function() {
-      hideHoodTooltip();
-      refreshSingleLayer(entry.subId);
-    });
+  hoodMap.addSource('locality-polygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: localityFeatures },
+    generateId: false,
+  });
 
-    hoodPolygonLayers[entry.subId] = layer;
+  hoodMap.addLayer({
+    id: 'locality-fill',
+    type: 'fill',
+    source: 'locality-polygons',
+    paint: {
+      'fill-color': ['get', 'fill'],
+      'fill-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        ['case',
+          ['any',
+            ['==', ['feature-state', 'status'], 'lived'],
+            ['==', ['feature-state', 'status'], 'visited']
+          ], 0.27,
+          0.12
+        ],
+        ['==', ['feature-state', 'status'], 'lived'], 0.55,
+        ['==', ['feature-state', 'status'], 'visited'], 0.40,
+        0
+      ],
+    },
+  });
+
+  hoodMap.addLayer({
+    id: 'locality-line',
+    type: 'line',
+    source: 'locality-polygons',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false], 'rgba(255,255,255,0.35)',
+        ['==', ['feature-state', 'status'], 'lived'], 'rgba(255,255,255,0.28)',
+        ['==', ['feature-state', 'status'], 'visited'], 'rgba(255,255,255,0.18)',
+        'transparent'
+      ],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false], 1.2,
+        ['==', ['feature-state', 'status'], 'lived'], 1.0,
+        ['==', ['feature-state', 'status'], 'visited'], 0.8,
+        0
+      ],
+    },
   });
 }
 
-// ─── Convert GeoJSON geometry to Leaflet latlngs ────────────────
-function geoJSONToLatLngs(geometry) {
-  if (!geometry) return null;
+// ─── Setup all map event handlers ───────────────────────────────
+function setupMapEvents() {
+  if (!hoodMap) return;
 
-  if (geometry.type === 'Polygon') {
-    return geometry.coordinates.map(ring =>
-      ring.map(coord => [coord[1], coord[0]])
-    );
-  } else if (geometry.type === 'MultiPolygon') {
-    return geometry.coordinates.map(poly =>
-      poly.map(ring => ring.map(coord => [coord[1], coord[0]]))
-    );
+  const mapContainer = hoodMap.getContainer();
+
+  // ─── NTA polygon events (non-sub neighborhoods) ───
+  if (hoodMap.getLayer('nta-fill')) {
+    hoodMap.on('click', 'nta-fill', function(e) {
+      if (!e.features || !e.features.length) return;
+      const props = e.features[0].properties;
+      openHoodDetail(props.ntaCode);
+    });
+
+    hoodMap.on('mousemove', 'nta-fill', function(e) {
+      if (!e.features || !e.features.length) return;
+      mapContainer.style.cursor = 'pointer';
+      const feat = e.features[0];
+      const id = feat.id;
+
+      // Clear previous hover
+      if (hoveredNTAId !== null && hoveredNTAId !== id) {
+        hoodMap.setFeatureState({ source: 'nta-polygons', id: hoveredNTAId }, { hover: false });
+      }
+      hoveredNTAId = id;
+      hoodMap.setFeatureState({ source: 'nta-polygons', id: id }, { hover: true });
+
+      // Tooltip
+      showHoodTooltipMapbox(e, feat.properties.ntaCode);
+    });
+
+    hoodMap.on('mouseleave', 'nta-fill', function() {
+      mapContainer.style.cursor = '';
+      if (hoveredNTAId !== null) {
+        hoodMap.setFeatureState({ source: 'nta-polygons', id: hoveredNTAId }, { hover: false });
+        hoveredNTAId = null;
+      }
+      hideHoodTooltip();
+    });
   }
-  return null;
+
+  // ─── Locality polygon events (sub-neighborhoods) ───
+  if (hoodMap.getLayer('locality-fill')) {
+    hoodMap.on('click', 'locality-fill', function(e) {
+      if (!e.features || !e.features.length) return;
+      const props = e.features[0].properties;
+      openHoodDetail(props.subId);
+      const bounds = featureBounds[props.subId];
+      if (bounds) {
+        hoodMap.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+      }
+    });
+
+    hoodMap.on('mousemove', 'locality-fill', function(e) {
+      if (!e.features || !e.features.length) return;
+      mapContainer.style.cursor = 'pointer';
+      const feat = e.features[0];
+      const id = feat.id;
+
+      if (hoveredLocalityId !== null && hoveredLocalityId !== id) {
+        hoodMap.setFeatureState({ source: 'locality-polygons', id: hoveredLocalityId }, { hover: false });
+      }
+      hoveredLocalityId = id;
+      hoodMap.setFeatureState({ source: 'locality-polygons', id: id }, { hover: true });
+
+      showHoodTooltipMapbox(e, feat.properties.subId);
+    });
+
+    hoodMap.on('mouseleave', 'locality-fill', function() {
+      mapContainer.style.cursor = '';
+      if (hoveredLocalityId !== null) {
+        hoodMap.setFeatureState({ source: 'locality-polygons', id: hoveredLocalityId }, { hover: false });
+        hoveredLocalityId = null;
+      }
+      hideHoodTooltip();
+    });
+  }
+
+  // ─── Central Park events ───
+  if (hoodMap.getLayer('central-park-fill')) {
+    hoodMap.on('click', 'central-park-fill', function() {
+      openHoodDetail('MN-CentralPark');
+    });
+
+    hoodMap.on('mousemove', 'central-park-fill', function(e) {
+      mapContainer.style.cursor = 'pointer';
+      showHoodTooltipMapbox(e, 'MN-CentralPark');
+    });
+
+    hoodMap.on('mouseleave', 'central-park-fill', function() {
+      mapContainer.style.cursor = '';
+      hideHoodTooltip();
+    });
+  }
 }
 
-// ─── Tooltip (uses same tooltip element as before) ──────────────
-function showHoodTooltipLeaflet(e, hoodId) {
+// ─── Tooltip ────────────────────────────────────────────────────
+function showHoodTooltipMapbox(e, hoodId) {
   const tooltip = document.getElementById('tooltip');
   const hood = getNeighborhoodById(hoodId);
   if (!hood || !tooltip) return;
@@ -432,9 +634,11 @@ function showHoodTooltipLeaflet(e, hoodId) {
   document.getElementById('t-name').textContent = hood.name;
   document.getElementById('t-sub').textContent = getBoroughName(hood.borough) + statusText;
 
+  // Mapbox GL e.point is relative to the map container
+  const containerRect = hoodMap.getContainer().getBoundingClientRect();
   tooltip.style.display = 'block';
-  tooltip.style.left = (e.originalEvent.pageX + 12) + 'px';
-  tooltip.style.top = (e.originalEvent.pageY - 10) + 'px';
+  tooltip.style.left = (containerRect.left + e.point.x + 12 + window.scrollX) + 'px';
+  tooltip.style.top = (containerRect.top + e.point.y - 10 + window.scrollY) + 'px';
 }
 
 function showHoodTooltip(event, hoodId) {
@@ -458,108 +662,30 @@ function hideHoodTooltip() {
   if (tooltip) tooltip.style.display = 'none';
 }
 
-// ─── Style constants ────────────────────────────────────────────
-// Consistent opacity levels across all neighborhoods
-const STYLE = {
-  // Unvisited: completely invisible — no fill, no border
-  unvisited:  { fillOpacity: 0, color: 'transparent', weight: 0 },
-  overlapped: { fillOpacity: 0, color: 'transparent', weight: 0 },
-  // Hover: subtle outline so users can see what they're pointing at
-  hover:      { fillOpacity: 0.12, color: 'rgba(255,255,255,0.35)', weight: 1.2 },
-  // Visited/lived: these are the only states that show color
-  visited:    { fillOpacity: 0.40, color: 'rgba(255,255,255,0.18)', weight: 0.8 },
-  lived:      { fillOpacity: 0.55, color: 'rgba(255,255,255,0.28)', weight: 1.0 },
-};
-
 // ─── Refresh map colors based on visited/lived status ───────────
+// Sets feature-state on all features. Called on init and after status changes.
 function refreshMapColors() {
   if (!hoodMap) return;
 
-  // NTA background layers (non-sub)
-  hoodBgLayers.forEach(entry => {
-    if (entry.hasSubs) return;
-    const code = entry.feature.properties.ntaCode;
-    const fill = entry.feature.properties._fill;
-    const status = getNeighborhoodStatus(code);
-
-    if (status === 'lived') {
-      entry.layer.setStyle({ fillColor: fill, ...STYLE.lived });
-    } else if (status === 'visited') {
-      entry.layer.setStyle({ fillColor: fill, ...STYLE.visited });
-    } else {
-      entry.layer.setStyle({ fillColor: fill, ...STYLE.unvisited });
-    }
-  });
-
-  // Sub-neighborhood polygon layers
-  const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
-
-  // Build overlap map for dimming
-  const subEntries = [];
-  Object.entries(hoodPolygonLayers).forEach(([subId, layer]) => {
-    if (!layer._subFill) return; // skip NTA-only layers
-    const priority = layer._priority || 0;
-    const bounds = layer.getBounds();
-    subEntries.push({ subId, layer, priority, bounds });
-  });
-
-  subEntries.forEach(entry => {
-    const status = getNeighborhoodStatus(entry.subId);
-    const fill = entry.layer._subFill;
-
-    // Check if overlapped by higher-priority neighbor
-    const isOverlapped = subEntries.some(other =>
-      other.subId !== entry.subId &&
-      other.priority > entry.priority &&
-      entry.bounds.intersects(other.bounds)
+  // NTA polygons
+  Object.keys(ntaIdMap).forEach(ntaCode => {
+    const id = ntaIdMap[ntaCode];
+    const status = getNeighborhoodStatus(ntaCode);
+    hoodMap.setFeatureState(
+      { source: 'nta-polygons', id: id },
+      { status: status || 'none' }
     );
-
-    if (status === 'lived') {
-      entry.layer.setStyle({ fillColor: fill, ...STYLE.lived });
-    } else if (status === 'visited') {
-      entry.layer.setStyle({ fillColor: fill, ...STYLE.visited });
-    } else if (isOverlapped) {
-      entry.layer.setStyle({ fillColor: fill, ...STYLE.overlapped });
-    } else {
-      entry.layer.setStyle({ fillColor: fill, ...STYLE.unvisited });
-    }
   });
-}
 
-// ─── Refresh a single layer (used on mouseout) ─────────────────
-function refreshSingleLayer(subId) {
-  const layer = hoodPolygonLayers[subId];
-  if (!layer) return;
-  const fill = layer._subFill || (function() {
-    // For NTA layers, find fill from bgLayers
-    const bg = hoodBgLayers.find(e => e.feature.properties.ntaCode === subId);
-    return bg ? bg.feature.properties._fill : '#fff';
-  })();
-  const status = getNeighborhoodStatus(subId);
-  const priority = layer._priority || 0;
-
-  if (status === 'lived') {
-    layer.setStyle({ fillColor: fill, ...STYLE.lived });
-  } else if (status === 'visited') {
-    layer.setStyle({ fillColor: fill, ...STYLE.visited });
-  } else {
-    // Check for overlap
-    const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
-    const bounds = layer.getBounds();
-    let isOverlapped = false;
-    if (hasPriority) {
-      Object.entries(hoodPolygonLayers).some(([otherId, other]) => {
-        if (otherId === subId || !other._subFill) return false;
-        const otherPri = other._priority || 0;
-        if (otherPri > priority && bounds.intersects(other.getBounds())) {
-          isOverlapped = true;
-          return true;
-        }
-        return false;
-      });
-    }
-    layer.setStyle({ fillColor: fill, ...(isOverlapped ? STYLE.overlapped : STYLE.unvisited) });
-  }
+  // Locality polygons
+  Object.keys(localityIdMap).forEach(subId => {
+    const id = localityIdMap[subId];
+    const status = getNeighborhoodStatus(subId);
+    hoodMap.setFeatureState(
+      { source: 'locality-polygons', id: id },
+      { status: status || 'none' }
+    );
+  });
 }
 
 // ─── Zoom controls ──────────────────────────────────────────────
@@ -575,22 +701,19 @@ function zoomMapOut() {
 
 function resetMapZoom() {
   if (!hoodMap) return;
-  hoodMap.setView([40.758, -73.985], 12, { animate: true });
+  hoodMap.flyTo({ center: [-73.985, 40.758], zoom: 11.5, bearing: 29 });
 }
 
 // ─── Zoom to a specific neighborhood ────────────────────────────
 function zoomToFeature(feature) {
   if (!hoodMap || !feature) return;
-  const latlngs = geoJSONToLatLngs(feature.geometry);
-  if (latlngs) {
-    const bounds = L.polygon(latlngs).getBounds();
-    hoodMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, animate: true });
-  }
+  const bbox = geoBBox(feature.geometry);
+  hoodMap.fitBounds(bbox, { padding: 60, maxZoom: 15 });
 }
 
 function zoomToPoint(lat, lng, zoomLevel) {
   if (!hoodMap) return;
-  hoodMap.setView([lat, lng], zoomLevel || 15, { animate: true });
+  hoodMap.flyTo({ center: [lng, lat], zoom: zoomLevel || 15 });
 }
 
 // ─── Render neighborhood cards grid ─────────────────────────────
@@ -632,9 +755,9 @@ function renderNeighborhoods(filter) {
     card.onclick = () => {
       openHoodDetail(hood.id);
       // Zoom map to this neighborhood
-      const layer = hoodPolygonLayers[hood.id];
-      if (layer) {
-        hoodMap.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 15, animate: true });
+      const bounds = featureBounds[hood.id];
+      if (bounds) {
+        hoodMap.fitBounds(bounds, { padding: 60, maxZoom: 15 });
       } else if (hood.parent && hoodGeoData) {
         const ntaCode = getSubNTA(hood.id);
         const feat = hoodGeoData.features.find(f => f.properties.ntaCode === ntaCode);
