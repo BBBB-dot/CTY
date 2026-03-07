@@ -51,6 +51,15 @@
   pointer-events: none;
 }
 
+/* Sub-neighborhood markers (visible on zoom) */
+.sub-marker {
+  transition: opacity 0.3s;
+}
+
+.sub-label {
+  transition: opacity 0.3s;
+}
+
 /* Legacy class — keep for compatibility */
 .hood-path {
   cursor: pointer;
@@ -230,6 +239,10 @@
 .hood-btn.lived {
   border-color: rgba(255,255,255,0.25);
   background: rgba(255,255,255,0.08);
+}
+
+.hood-btn.sub-hood {
+  border-style: dashed;
 }
 
 .hb-accent {

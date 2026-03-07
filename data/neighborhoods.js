@@ -1,6 +1,7 @@
-// NYC Neighborhoods — 197 NTA (Neighborhood Tabulation Areas) 2020
-// Auto-generated from NYC Open Data ArcGIS NTA boundaries
-// Total: 197 neighborhoods across 5 boroughs
+// NYC Neighborhoods — NTA 2020 + Manhattan micro-neighborhoods
+// NTA data from NYC Open Data ArcGIS boundaries
+// Manhattan sub-neighborhoods split from DCP "City of Neighborhoods" map
+// Total: 233 neighborhoods across 5 boroughs
 
 const NEIGHBORHOODS = [
   // ─── Bronx (37) ───
@@ -95,39 +96,137 @@ const NEIGHBORHOODS = [
   { id: 'BK0702', name: 'Sunset Park (West)', borough: 'brooklyn', center: [40.6557, -74.0119] },
   { id: 'BK0102', name: 'Williamsburg', borough: 'brooklyn', center: [40.7151, -73.963] },
   { id: 'BK0701', name: 'Windsor Terrace-South Slope', borough: 'brooklyn', center: [40.6559, -73.9782] },
-  // ─── Manhattan (32) ───
-  { id: 'MN0401', name: 'Chelsea-Hudson Yards', borough: 'manhattan', center: [40.75, -74.007] },
-  { id: 'MN0301', name: 'Chinatown-Two Bridges', borough: 'manhattan', center: [40.7116, -73.9939] },
-  { id: 'MN1102', name: 'East Harlem (North)', borough: 'manhattan', center: [40.8033, -73.9319] },
-  { id: 'MN1101', name: 'East Harlem (South)', borough: 'manhattan', center: [40.7883, -73.9424] },
-  { id: 'MN0604', name: 'East Midtown-Turtle Bay', borough: 'manhattan', center: [40.7552, -73.967] },
-  { id: 'MN0303', name: 'East Village', borough: 'manhattan', center: [40.7223, -73.9723] },
-  { id: 'MN0101', name: 'Financial District-Battery Park City', borough: 'manhattan', center: [40.7045, -74.0071] },
-  { id: 'MN0602', name: 'Gramercy', borough: 'manhattan', center: [40.7364, -73.9838] },
-  { id: 'MN0202', name: 'Greenwich Village', borough: 'manhattan', center: [40.7298, -73.9954] },
-  { id: 'MN0903', name: 'Hamilton Heights-Sugar Hill', borough: 'manhattan', center: [40.8285, -73.9498] },
+  // ─── Manhattan — Sub-neighborhoods split from NTA boundaries ───
+  // Based on DCP "City of Neighborhoods" reference map
+  // Each entry has an optional `parent` pointing to NTA code for polygon/spot lookup
+
+  // --- Lower Manhattan (from MN0101: Financial District-Battery Park City) ---
+  { id: 'MN-FiDi', name: 'Financial District', borough: 'manhattan', center: [40.7075, -74.0113], parent: 'MN0101' },
+  { id: 'MN-BPC', name: 'Battery Park City', borough: 'manhattan', center: [40.7115, -74.0165], parent: 'MN0101' },
+
+  // --- from MN0102: Tribeca-Civic Center ---
+  { id: 'MN-Tribeca', name: 'Tribeca', borough: 'manhattan', center: [40.7163, -74.0086], parent: 'MN0102' },
+  { id: 'MN-CivCtr', name: 'Civic Center', borough: 'manhattan', center: [40.7134, -74.0014], parent: 'MN0102' },
+  { id: 'MN-RadioRow', name: 'Radio Row', borough: 'manhattan', center: [40.7118, -74.0130], parent: 'MN0102' },
+
+  // --- from MN0201: SoHo-Little Italy-Hudson Square ---
+  { id: 'MN-SoHo', name: 'SoHo', borough: 'manhattan', center: [40.7233, -74.0030], parent: 'MN0201' },
+  { id: 'MN-LittleItaly', name: 'Little Italy', borough: 'manhattan', center: [40.7191, -73.9973], parent: 'MN0201' },
+  { id: 'MN-HudsonSq', name: 'Hudson Square', borough: 'manhattan', center: [40.7265, -74.0080], parent: 'MN0201' },
+  { id: 'MN-Nolita', name: 'Nolita', borough: 'manhattan', center: [40.7234, -73.9952], parent: 'MN0201' },
+
+  // --- from MN0202: Greenwich Village ---
+  { id: 'MN-GrnwchVlg', name: 'Greenwich Village', borough: 'manhattan', center: [40.7336, -73.9996], parent: 'MN0202' },
+  { id: 'MN-NoHo', name: 'NoHo', borough: 'manhattan', center: [40.7265, -73.9927], parent: 'MN0202' },
+
+  // --- from MN0203: West Village ---
+  { id: 'MN-WestVlg', name: 'West Village', borough: 'manhattan', center: [40.7358, -74.0036], parent: 'MN0203' },
+  { id: 'MN-Meatpacking', name: 'Meatpacking District', borough: 'manhattan', center: [40.7410, -74.0078], parent: 'MN0203' },
+
+  // --- from MN0301: Chinatown-Two Bridges ---
+  { id: 'MN-Chinatown', name: 'Chinatown', borough: 'manhattan', center: [40.7158, -73.9970], parent: 'MN0301' },
+  { id: 'MN-TwoBridges', name: 'Two Bridges', borough: 'manhattan', center: [40.7108, -73.9890], parent: 'MN0301' },
+  { id: 'MN-FivePts', name: 'Five Points', borough: 'manhattan', center: [40.7140, -73.9990], parent: 'MN0301' },
+
+  // --- from MN0302: Lower East Side ---
+  { id: 'MN-LES', name: 'Lower East Side', borough: 'manhattan', center: [40.7150, -73.9839], parent: 'MN0302' },
+  { id: 'MN-Bowery', name: 'Bowery', borough: 'manhattan', center: [40.7200, -73.9935], parent: 'MN0302' },
+  { id: 'MN-CoopVlg', name: 'Cooperative Village', borough: 'manhattan', center: [40.7148, -73.9800], parent: 'MN0302' },
+
+  // --- from MN0303: East Village ---
+  { id: 'MN-EastVlg', name: 'East Village', borough: 'manhattan', center: [40.7265, -73.9815], parent: 'MN0303' },
+  { id: 'MN-AlphaCity', name: 'Alphabet City', borough: 'manhattan', center: [40.7242, -73.9770], parent: 'MN0303' },
+  { id: 'MN-LilGermany', name: 'Little Germany', borough: 'manhattan', center: [40.7285, -73.9850], parent: 'MN0303' },
+
+  // --- from MN0401: Chelsea-Hudson Yards ---
+  { id: 'MN-Chelsea', name: 'Chelsea', borough: 'manhattan', center: [40.7462, -74.0000], parent: 'MN0401' },
+  { id: 'MN-HudsonYards', name: 'Hudson Yards', borough: 'manhattan', center: [40.7535, -74.0015], parent: 'MN0401' },
+
+  // --- from MN0402: Hell's Kitchen ---
+  { id: 'MN-HellsK', name: 'Hell\'s Kitchen', borough: 'manhattan', center: [40.7632, -73.9930], parent: 'MN0402' },
+  { id: 'MN-GarmentDist', name: 'Garment District', borough: 'manhattan', center: [40.7535, -73.9900], parent: 'MN0402' },
+
+  // --- from MN0501: Midtown South-Flatiron-Union Square ---
+  { id: 'MN-Flatiron', name: 'Flatiron District', borough: 'manhattan', center: [40.7401, -73.9897], parent: 'MN0501' },
+  { id: 'MN-UnionSq', name: 'Union Square', borough: 'manhattan', center: [40.7359, -73.9903], parent: 'MN0501' },
+  { id: 'MN-NoMad', name: 'NoMad', borough: 'manhattan', center: [40.7447, -73.9880], parent: 'MN0501' },
+  { id: 'MN-Tenderloin', name: 'Tenderloin', borough: 'manhattan', center: [40.7470, -73.9910], parent: 'MN0501' },
+  { id: 'MN-Koreatown', name: 'Koreatown', borough: 'manhattan', center: [40.7478, -73.9867], parent: 'MN0501' },
+  { id: 'MN-HeraldSq', name: 'Herald Square', borough: 'manhattan', center: [40.7499, -73.9879], parent: 'MN0501' },
+
+  // --- from MN0502: Midtown-Times Square ---
+  { id: 'MN-Midtown', name: 'Midtown', borough: 'manhattan', center: [40.7549, -73.9840], parent: 'MN0502' },
+  { id: 'MN-TimesSq', name: 'Times Square', borough: 'manhattan', center: [40.7580, -73.9855], parent: 'MN0502' },
+  { id: 'MN-DiamondDist', name: 'Diamond District', borough: 'manhattan', center: [40.7565, -73.9817], parent: 'MN0502' },
+
+  // --- from MN0601: Stuyvesant Town-Peter Cooper Village ---
+  { id: 'MN-StuyTown', name: 'Stuyvesant Town', borough: 'manhattan', center: [40.7317, -73.9780], parent: 'MN0601' },
+  { id: 'MN-PeterCooper', name: 'Peter Cooper Village', borough: 'manhattan', center: [40.7350, -73.9760], parent: 'MN0601' },
+
+  // --- from MN0602: Gramercy ---
+  { id: 'MN-Gramercy', name: 'Gramercy', borough: 'manhattan', center: [40.7374, -73.9838], parent: 'MN0602' },
+  { id: 'MN-RoseHill', name: 'Rose Hill', borough: 'manhattan', center: [40.7420, -73.9820], parent: 'MN0602' },
+
+  // --- from MN0603: Murray Hill-Kips Bay ---
+  { id: 'MN-MurrayHill', name: 'Murray Hill', borough: 'manhattan', center: [40.7485, -73.9765], parent: 'MN0603' },
+  { id: 'MN-KipsBay', name: 'Kips Bay', borough: 'manhattan', center: [40.7395, -73.9770], parent: 'MN0603' },
+
+  // --- from MN0604: East Midtown-Turtle Bay ---
+  { id: 'MN-EastMidtown', name: 'East Midtown', borough: 'manhattan', center: [40.7520, -73.9695], parent: 'MN0604' },
+  { id: 'MN-TurtleBay', name: 'Turtle Bay', borough: 'manhattan', center: [40.7540, -73.9670], parent: 'MN0604' },
+  { id: 'MN-SuttonPl', name: 'Sutton Place', borough: 'manhattan', center: [40.7580, -73.9610], parent: 'MN0604' },
+  { id: 'MN-TudorCity', name: 'Tudor City', borough: 'manhattan', center: [40.7490, -73.9710], parent: 'MN0604' },
+
+  // --- from MN0701: Upper West Side-Lincoln Square ---
+  { id: 'MN-LincolnSq', name: 'Lincoln Square', borough: 'manhattan', center: [40.7742, -73.9835], parent: 'MN0701' },
+  { id: 'MN-ColumbusCir', name: 'Columbus Circle', borough: 'manhattan', center: [40.7680, -73.9820], parent: 'MN0701' },
+  { id: 'MN-Ansonia', name: 'Ansonia', borough: 'manhattan', center: [40.7810, -73.9800], parent: 'MN0701' },
+
+  // --- from MN0702: Upper West Side (Central) ---
+  { id: 'MN-UWS', name: 'Upper West Side', borough: 'manhattan', center: [40.7870, -73.9750], parent: 'MN0702' },
+
+  // --- from MN0703: Upper West Side-Manhattan Valley ---
+  { id: 'MN-ManValley', name: 'Manhattan Valley', borough: 'manhattan', center: [40.7985, -73.9680], parent: 'MN0703' },
+
+  // --- from MN0801: UES-Lenox Hill-Roosevelt Island ---
+  { id: 'MN-LenoxHill', name: 'Lenox Hill', borough: 'manhattan', center: [40.7640, -73.9620], parent: 'MN0801' },
+  { id: 'MN-UES', name: 'Upper East Side', borough: 'manhattan', center: [40.7680, -73.9580], parent: 'MN0801' },
+
+  // --- from MN0802: UES-Carnegie Hill ---
+  { id: 'MN-CarnegieHill', name: 'Carnegie Hill', borough: 'manhattan', center: [40.7830, -73.9560], parent: 'MN0802' },
+
+  // --- from MN0803: UES-Yorkville ---
+  { id: 'MN-Yorkville', name: 'Yorkville', borough: 'manhattan', center: [40.7765, -73.9490], parent: 'MN0803' },
+
+  // --- from MN0901: Morningside Heights ---
+  { id: 'MN-MorningsideHts', name: 'Morningside Heights', borough: 'manhattan', center: [40.8100, -73.9628], parent: 'MN0901' },
+
+  // --- from MN0902: Manhattanville-West Harlem ---
+  { id: 'MN-Manhattanville', name: 'Manhattanville', borough: 'manhattan', center: [40.8175, -73.9570], parent: 'MN0902' },
+
+  // --- from MN0903: Hamilton Heights-Sugar Hill ---
+  { id: 'MN-HamiltonHts', name: 'Hamilton Heights', borough: 'manhattan', center: [40.8260, -73.9510], parent: 'MN0903' },
+  { id: 'MN-SugarHill', name: 'Sugar Hill', borough: 'manhattan', center: [40.8310, -73.9445], parent: 'MN0903' },
+
+  // --- from MN1001: Harlem (South) ---
+  { id: 'MN-Harlem', name: 'Harlem', borough: 'manhattan', center: [40.8095, -73.9460], parent: 'MN1001' },
+  { id: 'MN-StriversRow', name: 'Strivers\' Row', borough: 'manhattan', center: [40.8140, -73.9440], parent: 'MN1001' },
+  { id: 'MN-AstorRow', name: 'Astor Row', borough: 'manhattan', center: [40.8080, -73.9440], parent: 'MN1001' },
+
+  // --- from MN1002: Harlem (North) ---
   { id: 'MN1002', name: 'Harlem (North)', borough: 'manhattan', center: [40.8273, -73.9368] },
-  { id: 'MN1001', name: 'Harlem (South)', borough: 'manhattan', center: [40.8038, -73.951] },
-  { id: 'MN0402', name: 'Hell\'s Kitchen', borough: 'manhattan', center: [40.7666, -73.9963] },
-  { id: 'MN1203', name: 'Inwood', borough: 'manhattan', center: [40.8623, -73.9177] },
-  { id: 'MN0302', name: 'Lower East Side', borough: 'manhattan', center: [40.7147, -73.9826] },
-  { id: 'MN0902', name: 'Manhattanville-West Harlem', borough: 'manhattan', center: [40.82, -73.9561] },
-  { id: 'MN0501', name: 'Midtown South-Flatiron-Union Square', borough: 'manhattan', center: [40.7429, -73.9898] },
-  { id: 'MN0502', name: 'Midtown-Times Square', borough: 'manhattan', center: [40.7587, -73.9813] },
-  { id: 'MN0901', name: 'Morningside Heights', borough: 'manhattan', center: [40.81, -73.9628] },
-  { id: 'MN0603', name: 'Murray Hill-Kips Bay', borough: 'manhattan', center: [40.7372, -73.9677] },
-  { id: 'MN0201', name: 'SoHo-Little Italy-Hudson Square', borough: 'manhattan', center: [40.7243, -74.0043] },
-  { id: 'MN0601', name: 'Stuyvesant Town-Peter Cooper Village', borough: 'manhattan', center: [40.7306, -73.9726] },
-  { id: 'MN0102', name: 'Tribeca-Civic Center', borough: 'manhattan', center: [40.7164, -74.0073] },
-  { id: 'MN0802', name: 'Upper East Side-Carnegie Hill', borough: 'manhattan', center: [40.7758, -73.9602] },
-  { id: 'MN0801', name: 'Upper East Side-Lenox Hill-Roosevelt Island', borough: 'manhattan', center: [40.7619, -73.9527] },
-  { id: 'MN0803', name: 'Upper East Side-Yorkville', borough: 'manhattan', center: [40.7791, -73.9425] },
-  { id: 'MN0702', name: 'Upper West Side (Central)', borough: 'manhattan', center: [40.7871, -73.9795] },
-  { id: 'MN0701', name: 'Upper West Side-Lincoln Square', borough: 'manhattan', center: [40.7752, -73.9881] },
-  { id: 'MN0703', name: 'Upper West Side-Manhattan Valley', borough: 'manhattan', center: [40.8004, -73.9688] },
-  { id: 'MN1202', name: 'Washington Heights (North)', borough: 'manhattan', center: [40.8577, -73.9367] },
+
+  // --- from MN1101: East Harlem (South) ---
+  { id: 'MN-SpanishHarlem', name: 'Spanish Harlem', borough: 'manhattan', center: [40.7920, -73.9380], parent: 'MN1101' },
+  { id: 'MN1101-N', name: 'East Harlem', borough: 'manhattan', center: [40.7970, -73.9370], parent: 'MN1101' },
+
+  // --- MN1102: East Harlem (North) — kept as-is ---
+  { id: 'MN1102', name: 'East Harlem (North)', borough: 'manhattan', center: [40.8033, -73.9319] },
+
+  // --- MN1201-1203: Washington Heights + Inwood — kept as-is ---
   { id: 'MN1201', name: 'Washington Heights (South)', borough: 'manhattan', center: [40.8425, -73.943] },
-  { id: 'MN0203', name: 'West Village', borough: 'manhattan', center: [40.7378, -74.0093] },
+  { id: 'MN1202', name: 'Washington Heights (North)', borough: 'manhattan', center: [40.8577, -73.9367] },
+  { id: 'MN1203', name: 'Inwood', borough: 'manhattan', center: [40.8623, -73.9177] },
   // ─── Queens (59) ───
   { id: 'QN0103', name: 'Astoria (Central)', borough: 'queens', center: [40.7659, -73.9234] },
   { id: 'QN0104', name: 'Astoria (East)-Woodside (North)', borough: 'queens', center: [40.7603, -73.9052] },

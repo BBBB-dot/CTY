@@ -1,4 +1,4 @@
-// Neighborhoods Page — 197 NTA Map with Animated Zoom + Cards + Detail Popup
+// Neighborhoods Page — 233 Neighborhoods (NTA + sub-neighborhoods) with Animated Zoom
 
 let currentFilter = 'all';
 let currentSearch = '';
@@ -16,7 +16,6 @@ let mapH = 0;
 // ─── Borough color variation (creates distinct shades per NTA) ──
 function getNTAFill(ntaCode, borough, index, total) {
   const base = getBoroughColor(borough);
-  // Parse hex to HSL, vary hue ±25° and lightness ±10%
   const r = parseInt(base.slice(1, 3), 16) / 255;
   const g = parseInt(base.slice(3, 5), 16) / 255;
   const b = parseInt(base.slice(5, 7), 16) / 255;
@@ -34,9 +33,8 @@ function getNTAFill(ntaCode, borough, index, total) {
     }
   }
 
-  // Vary hue and lightness based on position in borough
   const t = total > 1 ? index / (total - 1) : 0.5;
-  const hueShift = (t - 0.5) * 0.14; // ±25° in 0-1 range
+  const hueShift = (t - 0.5) * 0.14;
   const lightShift = (t - 0.5) * 0.15;
 
   h = ((h + hueShift) % 1 + 1) % 1;
@@ -66,6 +64,12 @@ function hslToHex(h, s, l) {
   return '#' + [r, g, b].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
 }
 
+// ─── Get all sub-neighborhoods for a given NTA code ─────────────
+function getSubsForNTA(ntaCode) {
+  if (typeof SUB_TO_NTA === 'undefined') return [];
+  return NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === ntaCode);
+}
+
 // ─── Load GeoJSON and render map ───────────────────────────────
 function initHoodMap() {
   if (hoodMapReady) return;
@@ -84,29 +88,42 @@ function initHoodMap() {
     .style('height', 'auto')
     .style('background', 'transparent');
 
-  // Create a group for all map content (will be transformed by zoom)
   mapGroup = hoodSvg.append('g');
 
   // Setup D3 zoom
   hoodZoom = d3.zoom()
-    .scaleExtent([1, 12])
+    .scaleExtent([1, 20])
     .on('zoom', function(event) {
       mapGroup.attr('transform', event.transform);
-      // Scale labels inversely to stay readable
       const k = event.transform.k;
+
+      // Scale NTA labels
       mapGroup.selectAll('.hood-label')
         .style('font-size', Math.max(3, 6 / k) + 'px')
-        .style('opacity', k > 2 ? 0.7 : 0.45);
+        .style('opacity', k > 3 ? 0 : 0.45);
+
       // Scale strokes inversely
       mapGroup.selectAll('.nta-path')
         .style('stroke-width', 0.5 / k);
       mapGroup.selectAll('.bg-path')
         .style('stroke-width', 0.3 / k);
+
+      // Sub-neighborhood markers: show when zoomed in
+      mapGroup.selectAll('.sub-marker')
+        .style('opacity', k > 2.5 ? 0.9 : 0)
+        .attr('r', Math.max(1.5, 3 / k));
+      mapGroup.selectAll('.sub-label')
+        .style('opacity', k > 3 ? 0.85 : 0)
+        .style('font-size', Math.max(2.5, 5 / k) + 'px');
+
+      // Borough labels fade out when zoomed
+      mapGroup.selectAll('.borough-label')
+        .style('font-size', Math.max(5, 14 / k) + 'px')
+        .style('fill-opacity', Math.max(0, 0.12 - (k - 1) * 0.03));
     });
 
   hoodSvg.call(hoodZoom);
 
-  // Click on SVG background to reset zoom
   hoodSvg.on('click', function(event) {
     if (event.target === this || event.target.tagName === 'svg') {
       resetMapZoom();
@@ -116,7 +133,6 @@ function initHoodMap() {
   d3.json('data/nyc-neighborhoods.json').then(function(geo) {
     hoodGeoData = geo;
 
-    // Focus projection on main city mass
     const focusBbox = {
       type: 'FeatureCollection',
       features: [{
@@ -129,8 +145,7 @@ function initHoodMap() {
     hoodProjection = d3.geoMercator().fitSize([mapW - 20, mapH - 20], focusBbox);
     hoodPath = d3.geoPath().projection(hoodProjection);
 
-    // Separate features
-    const ntaPaths = [];  // type 0 = residential neighborhoods
+    const ntaPaths = [];
     const background = [];
 
     geo.features.forEach(f => {
@@ -143,18 +158,15 @@ function initHoodMap() {
       }
     });
 
-    // Count NTAs per borough for color variation
     const boroughCounts = {};
-    const boroughIndices = {};
     ntaPaths.forEach(f => {
       const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
       if (!boroughCounts[boro]) boroughCounts[boro] = 0;
       boroughCounts[boro]++;
     });
-    // Track index per borough
     const boroughIdx = {};
 
-    // Draw background features (parks, water, unmapped)
+    // Draw background
     mapGroup.selectAll('.bg-path')
       .data(background)
       .enter()
@@ -171,7 +183,7 @@ function initHoodMap() {
       .style('stroke', 'rgba(255,255,255,0.04)')
       .style('stroke-width', 0.3);
 
-    // Draw all 197 NTA paths
+    // Draw NTA paths
     mapGroup.selectAll('.nta-path')
       .data(ntaPaths)
       .enter()
@@ -191,19 +203,29 @@ function initHoodMap() {
       .on('click', function(event, d) {
         event.stopPropagation();
         zoomToFeature(d);
-        openHoodDetail(d.properties.ntaCode);
+        // If NTA has subs, open the first sub; otherwise open NTA itself
+        const subs = getSubsForNTA(d.properties.ntaCode);
+        if (subs.length > 0) {
+          // Don't open detail, just zoom — user picks from the sub-markers
+        } else {
+          openHoodDetail(d.properties.ntaCode);
+        }
       })
       .on('mouseenter', function(event, d) {
         showHoodTooltip(event, d.properties.ntaCode);
       })
       .on('mouseleave', hideHoodTooltip);
 
-    // Add NTA labels at centroids
+    // NTA labels (visible at default zoom, hidden when zoomed in)
     ntaPaths.forEach(f => {
       const centroid = hoodPath.centroid(f);
       if (isNaN(centroid[0])) return;
 
       const hood = getNeighborhoodById(f.properties.ntaCode);
+      // If NTA has subs, don't label the NTA itself — the subs will label
+      const subs = getSubsForNTA(f.properties.ntaCode);
+      if (subs.length > 0) return;
+
       const shortName = hood ? getHoodAbbr(hood.name) : f.properties.name.substring(0, 4);
 
       mapGroup.append('text')
@@ -215,7 +237,55 @@ function initHoodMap() {
         .style('pointer-events', 'none');
     });
 
-    // Add borough name labels
+    // ─── Sub-neighborhood markers + labels ───
+    // These appear when you zoom in and represent individual micro-neighborhoods
+    NEIGHBORHOODS.forEach(hood => {
+      if (!hood.parent) return; // skip non-sub entries
+      if (!hoodProjection) return;
+
+      const projected = hoodProjection([hood.center[1], hood.center[0]]); // [lng, lat]
+      if (!projected || isNaN(projected[0])) return;
+
+      const color = getBoroughColor(hood.borough);
+
+      // Dot marker
+      mapGroup.append('circle')
+        .attr('class', 'sub-marker')
+        .attr('cx', projected[0])
+        .attr('cy', projected[1])
+        .attr('r', 3)
+        .attr('data-hood-id', hood.id)
+        .style('fill', color)
+        .style('stroke', '#fff')
+        .style('stroke-width', 0.5)
+        .style('opacity', 0) // hidden until zoomed
+        .style('cursor', 'pointer')
+        .on('click', function(event) {
+          event.stopPropagation();
+          openHoodDetail(hood.id);
+        })
+        .on('mouseenter', function(event) {
+          showHoodTooltip(event, hood.id);
+        })
+        .on('mouseleave', hideHoodTooltip);
+
+      // Text label
+      mapGroup.append('text')
+        .attr('class', 'sub-label')
+        .attr('x', projected[0])
+        .attr('y', projected[1] - 5)
+        .text(hood.name)
+        .style('font-size', '5px')
+        .style('fill', '#fff')
+        .style('font-family', 'Space Grotesk, sans-serif')
+        .style('font-weight', '600')
+        .style('text-anchor', 'middle')
+        .style('pointer-events', 'none')
+        .style('opacity', 0) // hidden until zoomed
+        .style('text-shadow', '0 0 3px rgba(0,0,0,0.8), 0 0 6px rgba(0,0,0,0.5)');
+    });
+
+    // Borough name labels
     const boroughCentroids = {};
     ntaPaths.forEach(f => {
       const boro = f.properties.borough;
@@ -252,16 +322,14 @@ function initHoodMap() {
   });
 }
 
-// ─── Get short abbreviation for NTA label ───────────────────────
+// ─── Get short abbreviation ─────────────────────────────────────
 function getHoodAbbr(name) {
-  // Common abbreviations
   const words = name.split(/[-\s(]+/);
   if (words.length === 1) return name.length > 5 ? name.substring(0, 4) : name;
-  // Take first letter of each word (max 4)
   return words.slice(0, 4).map(w => w[0]).join('').toUpperCase();
 }
 
-// ─── Animated zoom to a neighborhood feature ────────────────────
+// ─── Animated zoom to feature ───────────────────────────────────
 function zoomToFeature(feature) {
   if (!hoodSvg || !hoodZoom || !hoodPath) return;
 
@@ -270,7 +338,7 @@ function zoomToFeature(feature) {
   const dy = y1 - y0;
   const x = (x0 + x1) / 2;
   const y = (y0 + y1) / 2;
-  const scale = Math.max(1, Math.min(10, 0.9 / Math.max(dx / mapW, dy / mapH)));
+  const scale = Math.max(1, Math.min(12, 0.9 / Math.max(dx / mapW, dy / mapH)));
 
   hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
     .call(hoodZoom.transform, d3.zoomIdentity
@@ -279,7 +347,21 @@ function zoomToFeature(feature) {
       .translate(-x, -y));
 }
 
-// ─── Reset zoom to full city view ───────────────────────────────
+// ─── Zoom to a lat/lng point (for sub-neighborhoods) ────────────
+function zoomToPoint(lat, lng, zoomLevel) {
+  if (!hoodSvg || !hoodZoom || !hoodProjection) return;
+  const projected = hoodProjection([lng, lat]);
+  if (!projected || isNaN(projected[0])) return;
+
+  const scale = zoomLevel || 8;
+  hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
+    .call(hoodZoom.transform, d3.zoomIdentity
+      .translate(mapW / 2, mapH / 2)
+      .scale(scale)
+      .translate(-projected[0], -projected[1]));
+}
+
+// ─── Reset zoom ─────────────────────────────────────────────────
 function resetMapZoom() {
   if (!hoodSvg || !hoodZoom) return;
   hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
@@ -298,50 +380,65 @@ function zoomMapOut() {
     .call(hoodZoom.scaleBy, 0.67);
 }
 
-// ─── Refresh map colors based on visited/lived status ───────────
+// ─── Refresh map colors ─────────────────────────────────────────
 function refreshMapColors() {
   if (!mapGroup) return;
 
   mapGroup.selectAll('.nta-path').each(function(d) {
     const el = d3.select(this);
     const code = d.properties.ntaCode;
-    const status = getNeighborhoodStatus(code);
     const fill = d.properties._fill;
 
-    if (status === 'lived') {
-      el.style('fill', fill)
-        .style('fill-opacity', 0.95)
-        .style('stroke', '#fff')
-        .style('stroke-width', 1.2);
-    } else if (status === 'visited') {
-      el.style('fill', fill)
-        .style('fill-opacity', 0.55)
-        .style('stroke', 'rgba(255,255,255,0.25)')
-        .style('stroke-width', 0.6);
+    // Check if any sub-neighborhoods in this NTA are visited/lived
+    const subs = getSubsForNTA(code);
+    let bestStatus = false;
+    if (subs.length > 0) {
+      subs.forEach(sub => {
+        const st = getNeighborhoodStatus(sub.id);
+        if (st === 'lived') bestStatus = 'lived';
+        else if (st === 'visited' && bestStatus !== 'lived') bestStatus = 'visited';
+      });
     } else {
-      el.style('fill', fill)
-        .style('fill-opacity', 0.15)
-        .style('stroke', 'rgba(255,255,255,0.08)')
-        .style('stroke-width', 0.5);
+      bestStatus = getNeighborhoodStatus(code);
+    }
+
+    if (bestStatus === 'lived') {
+      el.style('fill', fill).style('fill-opacity', 0.95)
+        .style('stroke', '#fff').style('stroke-width', 1.2);
+    } else if (bestStatus === 'visited') {
+      el.style('fill', fill).style('fill-opacity', 0.55)
+        .style('stroke', 'rgba(255,255,255,0.25)').style('stroke-width', 0.6);
+    } else {
+      el.style('fill', fill).style('fill-opacity', 0.15)
+        .style('stroke', 'rgba(255,255,255,0.08)').style('stroke-width', 0.5);
     }
   });
 
-  mapGroup.selectAll('.hood-label')
-    .style('fill', 'rgba(255,255,255,0.45)')
-    .style('font-family', 'Space Grotesk, sans-serif')
-    .style('font-weight', '600')
-    .style('text-anchor', 'middle')
-    .style('dominant-baseline', 'middle')
-    .style('letter-spacing', '0.3px');
+  // Update sub-neighborhood marker colors
+  mapGroup.selectAll('.sub-marker').each(function() {
+    const el = d3.select(this);
+    const hoodId = el.attr('data-hood-id');
+    const status = getNeighborhoodStatus(hoodId);
+    const hood = getNeighborhoodById(hoodId);
+    const color = hood ? getBoroughColor(hood.borough) : '#FF1493';
+
+    if (status === 'lived') {
+      el.style('fill', '#fff').style('stroke', color).style('stroke-width', 1);
+    } else if (status === 'visited') {
+      el.style('fill', color).style('stroke', '#fff').style('stroke-width', 0.5);
+    } else {
+      el.style('fill', color).style('stroke', '#fff').style('stroke-width', 0.5);
+    }
+  });
 }
 
 // ─── Tooltip ────────────────────────────────────────────────────
-function showHoodTooltip(event, ntaCode) {
+function showHoodTooltip(event, hoodId) {
   const tooltip = document.getElementById('tooltip');
-  const hood = getNeighborhoodById(ntaCode);
+  const hood = getNeighborhoodById(hoodId);
   if (!hood || !tooltip) return;
 
-  const status = getNeighborhoodStatus(ntaCode);
+  const status = getNeighborhoodStatus(hoodId);
   const statusText = status === 'lived' ? ' · Lived' : status === 'visited' ? ' · Visited' : '';
 
   document.getElementById('t-name').textContent = hood.name;
@@ -384,6 +481,7 @@ function renderNeighborhoods(filter) {
     card.className = 'hood-btn';
     if (status === 'lived') card.classList.add('lived');
     else if (status === 'visited') card.classList.add('visited');
+    if (hood.parent) card.classList.add('sub-hood');
 
     const abbr = getHoodAbbr(hood.name);
     card.innerHTML = `
@@ -395,8 +493,15 @@ function renderNeighborhoods(filter) {
 
     card.onclick = () => {
       openHoodDetail(hood.id);
-      // Find the GeoJSON feature and zoom to it
-      if (hoodGeoData) {
+      // Zoom to the right thing on the map
+      if (hood.parent && hoodGeoData) {
+        // Sub-neighborhood: zoom to parent NTA polygon, then further to point
+        const ntaCode = getSubNTA(hood.id);
+        const feat = hoodGeoData.features.find(f => f.properties.ntaCode === ntaCode);
+        if (feat) zoomToFeature(feat);
+        // Then zoom tighter to the sub-neighborhood point
+        setTimeout(() => zoomToPoint(hood.center[0], hood.center[1], 10), 800);
+      } else if (hoodGeoData) {
         const feat = hoodGeoData.features.find(f => f.properties.ntaCode === hood.id);
         if (feat) zoomToFeature(feat);
       }
@@ -419,51 +524,57 @@ function filterBorough(borough, btn) {
 }
 
 // ─── Open neighborhood detail popup ─────────────────────────────
-function openHoodDetail(ntaCode) {
-  currentHoodId = ntaCode;
-  const hood = getNeighborhoodById(ntaCode);
+function openHoodDetail(hoodId) {
+  currentHoodId = hoodId;
+  const hood = getNeighborhoodById(hoodId);
   if (!hood) return;
 
   const popup = document.getElementById('hood-detail');
   const color = getBoroughColor(hood.borough);
-  const status = getNeighborhoodStatus(ntaCode);
+  const status = getNeighborhoodStatus(hoodId);
 
   document.getElementById('hd-accent').style.background = color;
   document.getElementById('hd-name').textContent = hood.name;
   document.getElementById('hd-borough').textContent = getBoroughName(hood.borough);
   document.getElementById('hd-borough').style.color = color;
 
-  // Show parent group context if available
   const descEl = document.getElementById('hd-desc');
-  const parentId = getParentCTY(ntaCode);
-  if (parentId !== ntaCode) {
-    descEl.textContent = '';
-  } else {
-    descEl.textContent = '';
-  }
+  descEl.textContent = '';
 
   const tagsDiv = document.getElementById('hd-tags');
   tagsDiv.innerHTML = '';
+  if (hood.parent) {
+    // Show a tag indicating the parent NTA area
+    const parentHood = getNeighborhoodById(getSubNTA(hoodId));
+    if (parentHood) {
+      const tag = document.createElement('span');
+      tag.className = 'hd-tag';
+      tag.style.borderColor = color + '60';
+      tag.style.color = color;
+      tag.textContent = parentHood.name || 'NTA area';
+      // Don't add the tag if the parent doesn't exist as a card
+    }
+  }
 
-  updateStatusButtons(ntaCode, status, color);
+  updateStatusButtons(hoodId, status, color);
 
-  const visitedCount = getVisitedSpotsCount(ntaCode);
-  const total = getTotalSpotsCount(ntaCode);
+  const visitedCount = getVisitedSpotsCount(hoodId);
+  const total = getTotalSpotsCount(hoodId);
   const pct = total > 0 ? (visitedCount / total) * 100 : 0;
   document.getElementById('hd-progress-text').textContent = visitedCount + '/' + total + ' spots collected';
   const progressBar = document.getElementById('hd-progress-bar');
   progressBar.style.width = pct + '%';
   progressBar.style.background = color;
 
-  buildMiniMap(ntaCode, color);
-  renderSpotsList(ntaCode);
+  buildMiniMap(hoodId, color);
+  renderSpotsList(hoodId);
 
   popup.classList.add('active');
   document.getElementById('hood-detail-overlay').classList.add('active');
 }
 
 // ─── Update visited/lived status buttons ────────────────────────
-function updateStatusButtons(ntaCode, status, color) {
+function updateStatusButtons(hoodId, status, color) {
   const visitedBtn = document.getElementById('hd-visited-btn');
   const livedBtn = document.getElementById('hd-lived-btn');
 
@@ -524,16 +635,16 @@ function toggleHoodLived() {
   showToast(newStatus ? 'Marked as lived' : 'Removed lived status');
 }
 
-// ─── Build mini SVG map of neighborhood ─────────────────────────
-function buildMiniMap(ntaCode, color) {
+// ─── Build mini SVG map ─────────────────────────────────────────
+function buildMiniMap(hoodId, color) {
   const container = document.getElementById('hd-minimap');
   container.innerHTML = '';
 
-  const hood = getNeighborhoodById(ntaCode);
+  const hood = getNeighborhoodById(hoodId);
   if (!hood || !hoodGeoData) return;
 
-  const restaurants = getNeighborhoodRestaurants(ntaCode);
-  const attractions = getNeighborhoodAttractions(ntaCode);
+  const restaurants = getNeighborhoodRestaurants(hoodId);
+  const attractions = getNeighborhoodAttractions(hoodId);
   const allSpots = [
     ...restaurants.map(r => ({ ...r, spotType: 'restaurant' })),
     ...attractions.map(a => ({ ...a, spotType: 'attraction' }))
@@ -548,8 +659,10 @@ function buildMiniMap(ntaCode, color) {
     .style('border-radius', '8px')
     .style('background', 'rgba(255,255,255,0.03)');
 
-  // Find the feature for this NTA
+  // Find the feature — use parent NTA for sub-neighborhoods
+  const ntaCode = hood.parent ? getSubNTA(hoodId) : hoodId;
   const feature = hoodGeoData.features.find(f => f.properties.ntaCode === ntaCode);
+
   if (feature) {
     const fc = { type: 'FeatureCollection', features: [feature] };
     const miniProj = d3.geoMercator().fitSize([w - 20, h - 20], fc);
@@ -565,6 +678,24 @@ function buildMiniMap(ntaCode, color) {
       .style('stroke-width', 1.5)
       .style('stroke-opacity', 0.6);
 
+    // If this is a sub-neighborhood, draw a highlighted dot at its center
+    if (hood.parent) {
+      const projected = miniProj([hood.center[1], hood.center[0]]);
+      if (projected && !isNaN(projected[0])) {
+        g.append('circle')
+          .attr('cx', projected[0]).attr('cy', projected[1]).attr('r', 6)
+          .style('fill', color).style('stroke', '#fff').style('stroke-width', 2);
+        g.append('text')
+          .attr('x', projected[0]).attr('y', projected[1] - 10)
+          .text(hood.name)
+          .style('font-size', '8px')
+          .style('fill', '#fff')
+          .style('text-anchor', 'middle')
+          .style('font-family', 'Space Grotesk, sans-serif')
+          .style('font-weight', '600');
+      }
+    }
+
     // Plot spots
     allSpots.forEach((spot, i) => {
       const projected = miniProj([spot.lng, spot.lat]);
@@ -575,17 +706,14 @@ function buildMiniMap(ntaCode, color) {
         : isAttractionVisited(spot.id);
 
       g.append('circle')
-        .attr('cx', projected[0])
-        .attr('cy', projected[1])
-        .attr('r', 4)
+        .attr('cx', projected[0]).attr('cy', projected[1]).attr('r', 4)
         .style('fill', isVisited ? color : 'rgba(255,255,255,0.3)')
         .style('stroke', isVisited ? '#fff' : 'rgba(255,255,255,0.2)')
         .style('stroke-width', 1);
 
       if (i < 5) {
         g.append('text')
-          .attr('x', projected[0] + 6)
-          .attr('y', projected[1] + 3)
+          .attr('x', projected[0] + 6).attr('y', projected[1] + 3)
           .text(spot.name.length > 14 ? spot.name.substring(0, 13) + '…' : spot.name)
           .style('font-size', '7px')
           .style('fill', 'rgba(255,255,255,0.5)')
@@ -596,7 +724,7 @@ function buildMiniMap(ntaCode, color) {
     return;
   }
 
-  // Fallback: just show spot dots if no feature found
+  // Fallback: just show spot dots
   if (allSpots.length > 0) {
     const lats = allSpots.map(s => s.lat);
     const lngs = allSpots.map(s => s.lng);
@@ -622,9 +750,9 @@ function buildMiniMap(ntaCode, color) {
 }
 
 // ─── Render spots list in detail popup ──────────────────────────
-function renderSpotsList(ntaCode) {
-  const restaurants = getNeighborhoodRestaurants(ntaCode);
-  const attractions = getNeighborhoodAttractions(ntaCode);
+function renderSpotsList(hoodId) {
+  const restaurants = getNeighborhoodRestaurants(hoodId);
+  const attractions = getNeighborhoodAttractions(hoodId);
 
   const restDiv = document.getElementById('hd-restaurants');
   restDiv.innerHTML = '';

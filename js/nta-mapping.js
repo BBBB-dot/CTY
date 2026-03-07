@@ -1,146 +1,248 @@
 // NTA Code → Parent CTY ID mapping for restaurant/attraction spot lookup
-// NTAs without a parent just have no spots assigned yet
+// Sub-neighborhoods (MN-xxx) also map to parent CTY IDs
 
 const NTA_TO_PARENT = {
-  'BK0101': 'greenpoint',  // Greenpoint
-  'BK0102': 'williamsburg',  // Williamsburg
-  'BK0103': 'williamsburg',  // South Williamsburg
-  'BK0104': 'williamsburg',  // East Williamsburg
-  'BK0201': 'brooklyn_heights',  // Brooklyn Heights
-  'BK0202': 'dumbo',  // Downtown Brooklyn-DUMBO-Boerum Hill
-  'BK0203': 'fort_greene',  // Fort Greene
-  'BK0204': 'fort_greene',  // Clinton Hill
-  'BK0301': 'bed_stuy',  // Bedford-Stuyvesant (West)
-  'BK0302': 'bed_stuy',  // Bedford-Stuyvesant (East)
-  'BK0401': 'bushwick',  // Bushwick (West)
-  'BK0402': 'bushwick',  // Bushwick (East)
-  'BK0601': 'cobble_hill',  // Carroll Gardens-Cobble Hill-Gowanus-Red Hook
-  'BK0602': 'park_slope',  // Park Slope
-  'BK0701': 'park_slope',  // Windsor Terrace-South Slope
-  'BK0702': 'sunset_park',  // Sunset Park (West)
-  'BK0703': 'sunset_park',  // Sunset Park (Central)
-  'BK0801': 'prospect_heights',  // Prospect Heights
-  'BK0802': 'crown_heights',  // Crown Heights (North)
-  'BK0901': 'crown_heights',  // Crown Heights (South)
-  'BK0902': 'crown_heights',  // Prospect Lefferts Gardens-Wingate
-  'BK1001': 'bay_ridge',  // Bay Ridge
-  'BK1002': 'bay_ridge',  // Dyker Heights
-  'BK1201': 'sunset_park',  // Sunset Park (East)-Borough Park (West)
-  'BK1601': 'bed_stuy',  // Ocean Hill
-  'BX0101': 'mott_haven',  // Mott Haven-Port Morris
-  'BX0102': 'south_bronx',  // Melrose
-  'BX0201': 'hunts_point',  // Hunts Point
-  'BX0202': 'south_bronx',  // Longwood
-  'BX0301': 'south_bronx',  // Morrisania
-  'BX0302': 'south_bronx',  // Claremont Village-Claremont (East)
-  'BX0303': 'south_bronx',  // Crotona Park East
-  'BX0401': 'south_bronx',  // Concourse-Concourse Village
-  'BX0402': 'south_bronx',  // Highbridge
-  'BX0403': 'south_bronx',  // Mount Eden-Claremont (West)
-  'BX0501': 'fordham',  // University Heights (South)-Morris Heights
-  'BX0502': 'south_bronx',  // Mount Hope
-  'BX0503': 'fordham',  // Fordham Heights
-  'BX0601': 'belmont',  // West Farms
-  'BX0602': 'belmont',  // Tremont
-  'BX0603': 'belmont',  // Belmont
-  'BX0701': 'fordham',  // University Heights (North)-Fordham
-  'BX0702': 'fordham',  // Bedford Park
-  'BX0703': 'fordham',  // Norwood
-  'BX0801': 'fordham',  // Kingsbridge Heights-Van Cortlandt Village
-  'BX0802': 'fordham',  // Kingsbridge-Marble Hill
-  'BX0803': 'riverdale',  // Riverdale-Spuyten Duyvil
-  'BX0901': 'hunts_point',  // Soundview-Bruckner-Bronx River
-  'BX0902': 'hunts_point',  // Soundview-Clason Point
-  'BX0903': 'hunts_point',  // Castle Hill-Unionport
-  'BX0904': 'pelham_bay',  // Parkchester
-  'BX1001': 'pelham_bay',  // Westchester Square
-  'BX1002': 'pelham_bay',  // Throgs Neck-Schuylerville
-  'BX1003': 'pelham_bay',  // Pelham Bay-Country Club-City Island
-  'BX1101': 'pelham_bay',  // Pelham Parkway-Van Nest
-  'BX1102': 'belmont',  // Morris Park
-  'BX1103': 'pelham_bay',  // Pelham Gardens
-  'BX1104': 'pelham_bay',  // Allerton
-  'BX1201': 'pelham_bay',  // Williamsbridge-Olinville
-  'MN0101': 'financial_district',  // Financial District-Battery Park City
-  'MN0102': 'tribeca',  // Tribeca-Civic Center
-  'MN0201': 'soho',  // SoHo-Little Italy-Hudson Square
-  'MN0202': 'greenwich_village',  // Greenwich Village
-  'MN0203': 'west_village',  // West Village
-  'MN0301': 'chinatown',  // Chinatown-Two Bridges
-  'MN0302': 'lower_east_side',  // Lower East Side
-  'MN0303': 'east_village',  // East Village
-  'MN0401': 'chelsea',  // Chelsea-Hudson Yards
-  'MN0501': 'flatiron',  // Midtown South-Flatiron-Union Square
-  'MN0502': 'midtown',  // Midtown-Times Square
-  'MN0601': 'gramercy',  // Stuyvesant Town-Peter Cooper Village
-  'MN0602': 'gramercy',  // Gramercy
-  'MN0603': 'murray_hill',  // Murray Hill-Kips Bay
-  'MN0604': 'murray_hill',  // East Midtown-Turtle Bay
-  'MN0701': 'upper_west_side',  // Upper West Side-Lincoln Square
-  'MN0702': 'upper_west_side',  // Upper West Side (Central)
-  'MN0703': 'upper_west_side',  // Upper West Side-Manhattan Valley
-  'MN0801': 'upper_east_side',  // Upper East Side-Lenox Hill-Roosevelt Island
-  'MN0802': 'upper_east_side',  // Upper East Side-Carnegie Hill
-  'MN0803': 'upper_east_side',  // Upper East Side-Yorkville
-  'MN0901': 'harlem',  // Morningside Heights
-  'MN0902': 'harlem',  // Manhattanville-West Harlem
-  'MN0903': 'harlem',  // Hamilton Heights-Sugar Hill
-  'MN1001': 'harlem',  // Harlem (South)
-  'MN1002': 'harlem',  // Harlem (North)
-  'MN1101': 'harlem',  // East Harlem (South)
-  'MN1102': 'harlem',  // East Harlem (North)
-  'MN1201': 'washington_heights',  // Washington Heights (South)
-  'MN1202': 'washington_heights',  // Washington Heights (North)
-  'MN1203': 'washington_heights',  // Inwood
-  'QN0101': 'astoria',  // Astoria (North)-Ditmars-Steinway
-  'QN0102': 'astoria',  // Old Astoria-Hallets Point
-  'QN0103': 'astoria',  // Astoria (Central)
-  'QN0104': 'astoria',  // Astoria (East)-Woodside (North)
-  'QN0105': 'long_island_city',  // Queensbridge-Ravenswood-Dutch Kills
-  'QN0201': 'long_island_city',  // Long Island City-Hunters Point
-  'QN0202': 'sunnyside',  // Sunnyside
-  'QN0203': 'woodside',  // Woodside
-  'QN0301': 'jackson_heights',  // Jackson Heights
-  'QN0302': 'jackson_heights',  // East Elmhurst
-  'QN0303': 'corona',  // North Corona
-  'QN0401': 'jackson_heights',  // Elmhurst
-  'QN0402': 'corona',  // Corona
-  'QN0501': 'woodside',  // Maspeth
-  'QN0502': 'ridgewood',  // Ridgewood
-  'QN0503': 'ridgewood',  // Glendale
-  'QN0504': 'woodside',  // Middle Village
-  'QN0601': 'forest_hills',  // Rego Park
-  'QN0602': 'forest_hills',  // Forest Hills
-  'QN0703': 'bayside',  // Bay Terrace-Clearview
-  'QN0704': 'flushing',  // Murray Hill-Broadway Flushing
-  'QN0705': 'flushing',  // East Flushing
-  'QN0706': 'flushing',  // Queensboro Hill
-  'QN0707': 'flushing',  // Flushing-Willets Point
-  'QN0804': 'jamaica',  // Jamaica Estates-Holliswood
-  'QN0805': 'jamaica',  // Jamaica Hills-Briarwood
-  'QN0901': 'forest_hills',  // Kew Gardens
-  'QN0905': 'woodside',  // Woodhaven
-  'QN1102': 'bayside',  // Bayside
-  'QN1103': 'bayside',  // Douglaston-Little Neck
-  'QN1201': 'jamaica',  // Jamaica
-  'QN1202': 'jamaica',  // South Jamaica
-  'QN1401': 'rockaway_beach',  // Far Rockaway-Bayswater
-  'QN1402': 'rockaway_beach',  // Rockaway Beach-Arverne-Edgemere
-  'QN1403': 'rockaway_beach',  // Breezy Point-Belle Harbor-Rockaway Park-Broad Channel
-  'SI0101': 'st_george',  // St. George-New Brighton
-  'SI0102': 'st_george',  // Tompkinsville-Stapleton-Clifton-Fox Hills
-  'SI0103': 'st_george',  // Rosebank-Shore Acres-Park Hill
-  'SI0104': 'snug_harbor',  // West New Brighton-Silver Lake-Grymes Hill
-  'SI0105': 'snug_harbor',  // Westerleigh-Castleton Corners
-  'SI0106': 'snug_harbor',  // Port Richmond
-  'SI0201': 'st_george',  // Grasmere-Arrochar-South Beach-Dongan Hills
-  'SI0202': 'historic_richmond_town',  // New Dorp-Midland Beach
-  'SI0203': 'historic_richmond_town',  // Todt Hill-Emerson Hill-Lighthouse Hill-Manor Heights
-  'SI0204': 'snug_harbor',  // New Springville-Willowbrook-Bulls Head-Travis
-  'SI0301': 'historic_richmond_town',  // Oakwood-Richmondtown
-  'SI0302': 'tottenville',  // Great Kills-Eltingville
-  'SI0303': 'tottenville',  // Arden Heights-Rossville
-  'SI0305': 'tottenville',  // Tottenville-Charleston
+  // ─── Brooklyn ───
+  'BK0101': 'greenpoint',
+  'BK0102': 'williamsburg',
+  'BK0103': 'williamsburg',
+  'BK0104': 'williamsburg',
+  'BK0201': 'brooklyn_heights',
+  'BK0202': 'dumbo',
+  'BK0203': 'fort_greene',
+  'BK0204': 'fort_greene',
+  'BK0301': 'bed_stuy',
+  'BK0302': 'bed_stuy',
+  'BK0401': 'bushwick',
+  'BK0402': 'bushwick',
+  'BK0601': 'cobble_hill',
+  'BK0602': 'park_slope',
+  'BK0701': 'park_slope',
+  'BK0702': 'sunset_park',
+  'BK0703': 'sunset_park',
+  'BK0801': 'prospect_heights',
+  'BK0802': 'crown_heights',
+  'BK0901': 'crown_heights',
+  'BK0902': 'crown_heights',
+  'BK1001': 'bay_ridge',
+  'BK1002': 'bay_ridge',
+  'BK1201': 'sunset_park',
+  'BK1601': 'bed_stuy',
+  // ─── Bronx ───
+  'BX0101': 'mott_haven',
+  'BX0102': 'south_bronx',
+  'BX0201': 'hunts_point',
+  'BX0202': 'south_bronx',
+  'BX0301': 'south_bronx',
+  'BX0302': 'south_bronx',
+  'BX0303': 'south_bronx',
+  'BX0401': 'south_bronx',
+  'BX0402': 'south_bronx',
+  'BX0403': 'south_bronx',
+  'BX0501': 'fordham',
+  'BX0502': 'south_bronx',
+  'BX0503': 'fordham',
+  'BX0601': 'belmont',
+  'BX0602': 'belmont',
+  'BX0603': 'belmont',
+  'BX0701': 'fordham',
+  'BX0702': 'fordham',
+  'BX0703': 'fordham',
+  'BX0801': 'fordham',
+  'BX0802': 'fordham',
+  'BX0803': 'riverdale',
+  'BX0901': 'hunts_point',
+  'BX0902': 'hunts_point',
+  'BX0903': 'hunts_point',
+  'BX0904': 'pelham_bay',
+  'BX1001': 'pelham_bay',
+  'BX1002': 'pelham_bay',
+  'BX1003': 'pelham_bay',
+  'BX1101': 'pelham_bay',
+  'BX1102': 'belmont',
+  'BX1103': 'pelham_bay',
+  'BX1104': 'pelham_bay',
+  'BX1201': 'pelham_bay',
+  // ─── Manhattan NTA codes ───
+  'MN0101': 'financial_district',
+  'MN0102': 'tribeca',
+  'MN0201': 'soho',
+  'MN0202': 'greenwich_village',
+  'MN0203': 'west_village',
+  'MN0301': 'chinatown',
+  'MN0302': 'lower_east_side',
+  'MN0303': 'east_village',
+  'MN0401': 'chelsea',
+  'MN0402': 'hells_kitchen',
+  'MN0501': 'flatiron',
+  'MN0502': 'midtown',
+  'MN0601': 'gramercy',
+  'MN0602': 'gramercy',
+  'MN0603': 'murray_hill',
+  'MN0604': 'murray_hill',
+  'MN0701': 'upper_west_side',
+  'MN0702': 'upper_west_side',
+  'MN0703': 'upper_west_side',
+  'MN0801': 'upper_east_side',
+  'MN0802': 'upper_east_side',
+  'MN0803': 'upper_east_side',
+  'MN0901': 'harlem',
+  'MN0902': 'harlem',
+  'MN0903': 'harlem',
+  'MN1001': 'harlem',
+  'MN1002': 'harlem',
+  'MN1101': 'harlem',
+  'MN1102': 'harlem',
+  'MN1201': 'washington_heights',
+  'MN1202': 'washington_heights',
+  'MN1203': 'washington_heights',
+  // ─── Manhattan sub-neighborhoods ───
+  'MN-FiDi': 'financial_district',
+  'MN-BPC': 'financial_district',
+  'MN-Tribeca': 'tribeca',
+  'MN-CivCtr': 'tribeca',
+  'MN-RadioRow': 'tribeca',
+  'MN-SoHo': 'soho',
+  'MN-LittleItaly': 'soho',
+  'MN-HudsonSq': 'soho',
+  'MN-Nolita': 'soho',
+  'MN-GrnwchVlg': 'greenwich_village',
+  'MN-NoHo': 'greenwich_village',
+  'MN-WestVlg': 'west_village',
+  'MN-Meatpacking': 'west_village',
+  'MN-Chinatown': 'chinatown',
+  'MN-TwoBridges': 'chinatown',
+  'MN-FivePts': 'chinatown',
+  'MN-LES': 'lower_east_side',
+  'MN-Bowery': 'lower_east_side',
+  'MN-CoopVlg': 'lower_east_side',
+  'MN-EastVlg': 'east_village',
+  'MN-AlphaCity': 'east_village',
+  'MN-LilGermany': 'east_village',
+  'MN-Chelsea': 'chelsea',
+  'MN-HudsonYards': 'chelsea',
+  'MN-HellsK': 'hells_kitchen',
+  'MN-GarmentDist': 'hells_kitchen',
+  'MN-Flatiron': 'flatiron',
+  'MN-UnionSq': 'flatiron',
+  'MN-NoMad': 'flatiron',
+  'MN-Tenderloin': 'flatiron',
+  'MN-Koreatown': 'flatiron',
+  'MN-HeraldSq': 'flatiron',
+  'MN-Midtown': 'midtown',
+  'MN-TimesSq': 'midtown',
+  'MN-DiamondDist': 'midtown',
+  'MN-StuyTown': 'gramercy',
+  'MN-PeterCooper': 'gramercy',
+  'MN-Gramercy': 'gramercy',
+  'MN-RoseHill': 'gramercy',
+  'MN-MurrayHill': 'murray_hill',
+  'MN-KipsBay': 'murray_hill',
+  'MN-EastMidtown': 'murray_hill',
+  'MN-TurtleBay': 'murray_hill',
+  'MN-SuttonPl': 'murray_hill',
+  'MN-TudorCity': 'murray_hill',
+  'MN-LincolnSq': 'upper_west_side',
+  'MN-ColumbusCir': 'upper_west_side',
+  'MN-Ansonia': 'upper_west_side',
+  'MN-UWS': 'upper_west_side',
+  'MN-ManValley': 'upper_west_side',
+  'MN-LenoxHill': 'upper_east_side',
+  'MN-UES': 'upper_east_side',
+  'MN-CarnegieHill': 'upper_east_side',
+  'MN-Yorkville': 'upper_east_side',
+  'MN-MorningsideHts': 'harlem',
+  'MN-Manhattanville': 'harlem',
+  'MN-HamiltonHts': 'harlem',
+  'MN-SugarHill': 'harlem',
+  'MN-Harlem': 'harlem',
+  'MN-StriversRow': 'harlem',
+  'MN-AstorRow': 'harlem',
+  'MN-SpanishHarlem': 'harlem',
+  'MN1101-N': 'harlem',
+  // ─── Queens ───
+  'QN0101': 'astoria',
+  'QN0102': 'astoria',
+  'QN0103': 'astoria',
+  'QN0104': 'astoria',
+  'QN0105': 'long_island_city',
+  'QN0201': 'long_island_city',
+  'QN0202': 'sunnyside',
+  'QN0203': 'woodside',
+  'QN0301': 'jackson_heights',
+  'QN0302': 'jackson_heights',
+  'QN0303': 'corona',
+  'QN0401': 'jackson_heights',
+  'QN0402': 'corona',
+  'QN0501': 'woodside',
+  'QN0502': 'ridgewood',
+  'QN0503': 'ridgewood',
+  'QN0504': 'woodside',
+  'QN0601': 'forest_hills',
+  'QN0602': 'forest_hills',
+  'QN0703': 'bayside',
+  'QN0704': 'flushing',
+  'QN0705': 'flushing',
+  'QN0706': 'flushing',
+  'QN0707': 'flushing',
+  'QN0804': 'jamaica',
+  'QN0805': 'jamaica',
+  'QN0901': 'forest_hills',
+  'QN0905': 'woodside',
+  'QN1102': 'bayside',
+  'QN1103': 'bayside',
+  'QN1201': 'jamaica',
+  'QN1202': 'jamaica',
+  'QN1401': 'rockaway_beach',
+  'QN1402': 'rockaway_beach',
+  'QN1403': 'rockaway_beach',
+  // ─── Staten Island ───
+  'SI0101': 'st_george',
+  'SI0102': 'st_george',
+  'SI0103': 'st_george',
+  'SI0104': 'snug_harbor',
+  'SI0105': 'snug_harbor',
+  'SI0106': 'snug_harbor',
+  'SI0201': 'st_george',
+  'SI0202': 'historic_richmond_town',
+  'SI0203': 'historic_richmond_town',
+  'SI0204': 'snug_harbor',
+  'SI0301': 'historic_richmond_town',
+  'SI0302': 'tottenville',
+  'SI0303': 'tottenville',
+  'SI0305': 'tottenville',
+};
+
+// Sub-neighborhood ID → parent NTA code (for polygon lookup on the map)
+const SUB_TO_NTA = {
+  'MN-FiDi': 'MN0101', 'MN-BPC': 'MN0101',
+  'MN-Tribeca': 'MN0102', 'MN-CivCtr': 'MN0102', 'MN-RadioRow': 'MN0102',
+  'MN-SoHo': 'MN0201', 'MN-LittleItaly': 'MN0201', 'MN-HudsonSq': 'MN0201', 'MN-Nolita': 'MN0201',
+  'MN-GrnwchVlg': 'MN0202', 'MN-NoHo': 'MN0202',
+  'MN-WestVlg': 'MN0203', 'MN-Meatpacking': 'MN0203',
+  'MN-Chinatown': 'MN0301', 'MN-TwoBridges': 'MN0301', 'MN-FivePts': 'MN0301',
+  'MN-LES': 'MN0302', 'MN-Bowery': 'MN0302', 'MN-CoopVlg': 'MN0302',
+  'MN-EastVlg': 'MN0303', 'MN-AlphaCity': 'MN0303', 'MN-LilGermany': 'MN0303',
+  'MN-Chelsea': 'MN0401', 'MN-HudsonYards': 'MN0401',
+  'MN-HellsK': 'MN0402', 'MN-GarmentDist': 'MN0402',
+  'MN-Flatiron': 'MN0501', 'MN-UnionSq': 'MN0501', 'MN-NoMad': 'MN0501',
+  'MN-Tenderloin': 'MN0501', 'MN-Koreatown': 'MN0501', 'MN-HeraldSq': 'MN0501',
+  'MN-Midtown': 'MN0502', 'MN-TimesSq': 'MN0502', 'MN-DiamondDist': 'MN0502',
+  'MN-StuyTown': 'MN0601', 'MN-PeterCooper': 'MN0601',
+  'MN-Gramercy': 'MN0602', 'MN-RoseHill': 'MN0602',
+  'MN-MurrayHill': 'MN0603', 'MN-KipsBay': 'MN0603',
+  'MN-EastMidtown': 'MN0604', 'MN-TurtleBay': 'MN0604', 'MN-SuttonPl': 'MN0604', 'MN-TudorCity': 'MN0604',
+  'MN-LincolnSq': 'MN0701', 'MN-ColumbusCir': 'MN0701', 'MN-Ansonia': 'MN0701',
+  'MN-UWS': 'MN0702',
+  'MN-ManValley': 'MN0703',
+  'MN-LenoxHill': 'MN0801', 'MN-UES': 'MN0801',
+  'MN-CarnegieHill': 'MN0802',
+  'MN-Yorkville': 'MN0803',
+  'MN-MorningsideHts': 'MN0901',
+  'MN-Manhattanville': 'MN0902',
+  'MN-HamiltonHts': 'MN0903', 'MN-SugarHill': 'MN0903',
+  'MN-Harlem': 'MN1001', 'MN-StriversRow': 'MN1001', 'MN-AstorRow': 'MN1001',
+  'MN-SpanishHarlem': 'MN1101', 'MN1101-N': 'MN1101',
 };
 
 // NTA Name → NTA Code lookup (for GeoJSON feature matching)
@@ -343,3 +445,16 @@ const NTA_NAME_TO_CODE = {
   'Annadale-Huguenot-Prince\'s Bay-Woodrow': 'SI0304',
   'Tottenville-Charleston': 'SI0305',
 };
+
+// Helper: check if a hood ID is a sub-neighborhood
+function isSubNeighborhood(hoodId) {
+  return typeof SUB_TO_NTA !== 'undefined' && SUB_TO_NTA[hoodId] !== undefined;
+}
+
+// Helper: get the NTA code for a sub-neighborhood (for polygon lookup)
+function getSubNTA(hoodId) {
+  if (typeof SUB_TO_NTA !== 'undefined' && SUB_TO_NTA[hoodId]) {
+    return SUB_TO_NTA[hoodId];
+  }
+  return hoodId;
+}
