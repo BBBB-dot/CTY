@@ -1,7 +1,7 @@
 // NYC Neighborhoods — NTA 2020 + Manhattan micro-neighborhoods
 // NTA data from NYC Open Data ArcGIS boundaries
 // Manhattan sub-neighborhoods split from DCP "City of Neighborhoods" map
-// Total: 225 neighborhoods across 5 boroughs
+// Total: 223 neighborhoods across 5 boroughs
 
 const NEIGHBORHOODS = [
   // ─── Bronx (37) ───
@@ -152,7 +152,6 @@ const NEIGHBORHOODS = [
   { id: 'MN-NoMad', name: 'NoMad', borough: 'manhattan', center: [40.7447, -73.9880], parent: 'MN0501' },
 
   { id: 'MN-Koreatown', name: 'Koreatown', borough: 'manhattan', center: [40.7478, -73.9867], parent: 'MN0501' },
-  { id: 'MN-HeraldSq', name: 'Herald Square', borough: 'manhattan', center: [40.7499, -73.9879], parent: 'MN0501' },
 
   // --- from MN0502: Midtown-Times Square ---
   { id: 'MN-Midtown', name: 'Midtown', borough: 'manhattan', center: [40.7549, -73.9840], parent: 'MN0502' },
@@ -179,7 +178,6 @@ const NEIGHBORHOODS = [
 
   // --- from MN0701: Upper West Side-Lincoln Square ---
   { id: 'MN-LincolnSq', name: 'Lincoln Square', borough: 'manhattan', center: [40.7742, -73.9835], parent: 'MN0701' },
-  { id: 'MN-ColumbusCir', name: 'Columbus Circle', borough: 'manhattan', center: [40.7680, -73.9820], parent: 'MN0701' },
 
 
   // --- from MN0702: Upper West Side (Central) ---

@@ -287,14 +287,15 @@ function initHoodMap() {
       'East Midtown': 'Midtown East',
       'Midtown': 'Midtown Center',
       'Times Square': 'Theater District',
-      'Herald Square': 'Koreatown',
-      'Columbus Circle': 'Lincoln Square',
     };
 
     function getLocalityBounds(name) {
       if (!hasLocality) return null;
       return LOCALITY_BOUNDARIES[name] || LOCALITY_BOUNDARIES[LOCALITY_ALIASES[name]] || null;
     }
+
+    // Create a <defs> for clipPaths
+    const defs = mapGroup.append('defs');
 
     ntaPaths.forEach(feature => {
       const ntaCode = feature.properties.ntaCode;
@@ -326,6 +327,15 @@ function initHoodMap() {
       const realSubs = subsWithBounds.filter(s => s.localityBounds);
       const voronoiSubs = subsWithBounds.filter(s => !s.localityBounds);
 
+      // Create clipPath from NTA boundary to contain locality polygons
+      if (realSubs.length > 0) {
+        const clipId = 'clip-' + ntaCode;
+        defs.append('clipPath')
+          .attr('id', clipId)
+          .append('path')
+          .attr('d', hoodPath(feature));
+      }
+
       // ── Render real polygon boundaries from locality.nyc ──
       realSubs.forEach((sub, i) => {
         const lb = sub.localityBounds;
@@ -349,10 +359,11 @@ function initHoodMap() {
           .attr('d', pathD)
           .attr('data-sub-id', sub.id)
           .attr('data-nta', ntaCode)
+          .attr('clip-path', 'url(#clip-' + ntaCode + ')')
           .style('fill', subFill)
-          .style('fill-opacity', 0.15)
-          .style('stroke', 'rgba(255,255,255,0.2)')
-          .style('stroke-width', 0.8)
+          .style('fill-opacity', 0.18)
+          .style('stroke', 'rgba(255,255,255,0.15)')
+          .style('stroke-width', 0.5)
           .style('cursor', 'pointer')
           .on('click', function(event) {
             event.stopPropagation();
