@@ -1,5 +1,6 @@
 /* ============================================
    CTY - Stamps/Passport Page Stylesheet
+   NYC Identity Light Theme
    ============================================ */
 
 /* ============================================
@@ -30,7 +31,7 @@
 }
 
 .stamps-filter-bar::-webkit-scrollbar-thumb {
-  background: var(--surface-3);
+  background: var(--border);
   border-radius: 2px;
 }
 
@@ -102,7 +103,7 @@
    ============================================ */
 
 .stamp-face {
-  background: var(--surface-2);
+  background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
   padding: 20px 16px;
@@ -118,13 +119,13 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Before pseudo-element for decorative background on earned stamps */
+/* Decorative background glow on earned stamps */
 .stamp-face::before {
   content: '';
   position: absolute;
   inset: 0;
   background: radial-gradient(circle at 30% 30%,
-    color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 4%, transparent) 0%,
+    color-mix(in srgb, var(--glow-color, var(--manhattan)) 6%, transparent) 0%,
     transparent 60%);
   opacity: 0;
   transition: opacity 0.3s;
@@ -134,16 +135,15 @@
   opacity: 1;
 }
 
-/* Earned state — neon glow */
+/* Earned state — colored border with subtle glow */
 .stamp-card.earned .stamp-face {
-  border-color: var(--glow-color, var(--neon-manhattan));
-  box-shadow: 0 0 15px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 30%, transparent),
-              inset 0 0 20px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 8%, transparent);
+  border-color: var(--glow-color, var(--manhattan));
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--glow-color, var(--manhattan)) 15%, transparent);
 }
 
 /* Locked state — dim */
 .stamp-card.locked .stamp-face {
-  opacity: 0.45;
+  opacity: 0.35;
 }
 
 .stamp-card.locked:hover {
@@ -166,7 +166,6 @@
 
 .stamp-card.earned:hover .stamp-icon {
   transform: scale(1.1);
-  filter: drop-shadow(0 0 8px currentColor);
 }
 
 .stamp-name {
@@ -193,7 +192,7 @@
 .stamp-category {
   font-size: 10px;
   color: var(--text-3);
-  background: var(--surface-3);
+  background: var(--surface-2);
   padding: 2px 8px;
   border-radius: 10px;
   text-transform: capitalize;
@@ -203,8 +202,8 @@
 }
 
 .stamp-card.earned .stamp-category {
-  background: color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 20%, var(--surface-3));
-  color: var(--glow-color, var(--neon-manhattan));
+  background: color-mix(in srgb, var(--glow-color, var(--manhattan)) 10%, var(--surface-2));
+  color: var(--glow-color, var(--manhattan));
 }
 
 /* ============================================
@@ -218,15 +217,14 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--glow-color, var(--neon-manhattan));
-  color: #000;
+  background: var(--glow-color, var(--manhattan));
+  color: #fff;
   font-size: 13px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 12px var(--glow-color, var(--neon-manhattan)),
-              0 0 24px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 40%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--glow-color, var(--manhattan)) 30%, transparent);
   z-index: 10;
   animation: checkPulse 2s ease-in-out infinite;
 }
@@ -234,13 +232,11 @@
 @keyframes checkPulse {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 12px var(--glow-color, var(--neon-manhattan)),
-                0 0 24px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 40%, transparent);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--glow-color, var(--manhattan)) 30%, transparent);
   }
   50% {
-    transform: scale(1.1);
-    box-shadow: 0 0 16px var(--glow-color, var(--neon-manhattan)),
-                0 0 32px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 50%, transparent);
+    transform: scale(1.05);
+    box-shadow: 0 2px 12px color-mix(in srgb, var(--glow-color, var(--manhattan)) 40%, transparent);
   }
 }
 
@@ -299,15 +295,15 @@
 
 .stamps-stat-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .stamps-stat-card:hover {
-  border-color: var(--border-hover);
   transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .stamps-stat-label {
@@ -336,7 +332,7 @@
 
 .stamps-stat-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--neon-manhattan), var(--neon-brooklyn));
+  background: linear-gradient(90deg, var(--mta-red), var(--queens), var(--manhattan), var(--brooklyn));
   border-radius: 3px;
   transition: width 0.5s ease-out;
 }

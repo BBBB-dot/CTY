@@ -170,7 +170,7 @@ function initHoodMap() {
   // Create Mapbox GL map with native bearing for vertical Manhattan
   hoodMap = new mapboxgl.Map({
     container: 'hood-map-container',
-    style: 'mapbox://styles/mapbox/dark-v11',
+    style: 'mapbox://styles/mapbox/light-v11',
     center: [-73.985, 40.758],
     zoom: 11.5,
     bearing: 29,           // Native rotation — Manhattan vertical, no CSS hacks
@@ -304,15 +304,15 @@ function renderMapboxMap(geo) {
     paint: {
       'line-color': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false], 'rgba(255,255,255,0.35)',
-        ['==', ['feature-state', 'status'], 'lived'], 'rgba(255,255,255,0.28)',
-        ['==', ['feature-state', 'status'], 'visited'], 'rgba(255,255,255,0.18)',
+        ['boolean', ['feature-state', 'hover'], false], 'rgba(28,28,28,0.5)',
+        ['==', ['feature-state', 'status'], 'lived'], 'rgba(28,28,28,0.35)',
+        ['==', ['feature-state', 'status'], 'visited'], 'rgba(28,28,28,0.2)',
         'transparent'
       ],
       'line-width': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false], 1.2,
-        ['==', ['feature-state', 'status'], 'lived'], 1.0,
+        ['boolean', ['feature-state', 'hover'], false], 1.5,
+        ['==', ['feature-state', 'status'], 'lived'], 1.2,
         ['==', ['feature-state', 'status'], 'visited'], 0.8,
         0
       ],
@@ -513,15 +513,15 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
     paint: {
       'line-color': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false], 'rgba(255,255,255,0.35)',
-        ['==', ['feature-state', 'status'], 'lived'], 'rgba(255,255,255,0.28)',
-        ['==', ['feature-state', 'status'], 'visited'], 'rgba(255,255,255,0.18)',
+        ['boolean', ['feature-state', 'hover'], false], 'rgba(28,28,28,0.5)',
+        ['==', ['feature-state', 'status'], 'lived'], 'rgba(28,28,28,0.35)',
+        ['==', ['feature-state', 'status'], 'visited'], 'rgba(28,28,28,0.2)',
         'transparent'
       ],
       'line-width': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false], 1.2,
-        ['==', ['feature-state', 'status'], 'lived'], 1.0,
+        ['boolean', ['feature-state', 'hover'], false], 1.5,
+        ['==', ['feature-state', 'status'], 'lived'], 1.2,
         ['==', ['feature-state', 'status'], 'visited'], 0.8,
         0
       ],
@@ -750,7 +750,7 @@ function renderNeighborhoods(filter) {
     const abbr = getHoodAbbr(hood.name);
     card.innerHTML = `
       <div class="hb-accent" style="background:${color}"></div>
-      <div class="hb-abbr" style="color:${status ? color : 'rgba(255,255,255,0.4)'}">${abbr}</div>
+      <div class="hb-abbr" style="color:${status ? color : '#bbb'}">${abbr}</div>
       <div class="hb-name">${escHtml(hood.name)}</div>
       ${spots > 0 ? `<div class="hb-meta">${visited}/${spots}</div>` : ''}
     `;
@@ -834,9 +834,9 @@ function updateStatusButtons(hoodId, status, color) {
     visitedBtn.textContent = '✓ Visited';
   } else {
     visitedBtn.classList.remove('active');
-    visitedBtn.style.background = 'rgba(255,255,255,0.06)';
-    visitedBtn.style.color = 'rgba(255,255,255,0.5)';
-    visitedBtn.style.borderColor = 'rgba(255,255,255,0.15)';
+    visitedBtn.style.background = '#FFFFFF';
+    visitedBtn.style.color = '#6B6B6B';
+    visitedBtn.style.borderColor = '#E5E0D6';
     visitedBtn.textContent = 'Mark Visited';
   }
 
@@ -848,9 +848,9 @@ function updateStatusButtons(hoodId, status, color) {
     livedBtn.textContent = '✓ Lived Here';
   } else {
     livedBtn.classList.remove('active');
-    livedBtn.style.background = 'rgba(255,255,255,0.06)';
-    livedBtn.style.color = 'rgba(255,255,255,0.5)';
-    livedBtn.style.borderColor = 'rgba(255,255,255,0.15)';
+    livedBtn.style.background = '#FFFFFF';
+    livedBtn.style.color = '#6B6B6B';
+    livedBtn.style.borderColor = '#E5E0D6';
     livedBtn.textContent = 'Lived Here';
   }
 }
@@ -884,12 +884,14 @@ function toggleHoodLived() {
 }
 
 // ─── Build mini map (D3 — self-contained for detail popup) ──────
+// Uses locality boundary polygon for sub-neighborhoods when available,
+// falls back to NTA parent polygon, then to spot-based map.
 function buildMiniMap(hoodId, color) {
   const container = document.getElementById('hd-minimap');
   container.innerHTML = '';
 
   const hood = getNeighborhoodById(hoodId);
-  if (!hood || !hoodGeoData) return;
+  if (!hood) return;
 
   const restaurants = getNeighborhoodRestaurants(hoodId);
   const attractions = getNeighborhoodAttractions(hoodId);
@@ -905,60 +907,99 @@ function buildMiniMap(hoodId, color) {
     .attr('width', w)
     .attr('height', h)
     .style('border-radius', '8px')
-    .style('background', 'rgba(255,255,255,0.03)');
+    .style('background', '#F9F7F3');
 
-  const ntaCode = hood.parent ? getSubNTA(hoodId) : hoodId;
-  const feature = hoodGeoData.features.find(f => f.properties.ntaCode === ntaCode);
+  // ─── 1. Try locality boundary polygon (accurate sub-neighborhood shape) ───
+  let localityFeature = null;
+  const localityName = SUB_TO_LOCALITY[hoodId];
+  if (localityName && typeof LOCALITY_BOUNDARIES !== 'undefined' && LOCALITY_BOUNDARIES[localityName]) {
+    const lb = LOCALITY_BOUNDARIES[localityName];
+    if (lb.polygon && lb.polygon.length > 2) {
+      // Convert [lat,lng] → [lng,lat] for GeoJSON
+      const coords = lb.polygon.map(p => [p[1], p[0]]);
+      // Close ring if needed
+      const first = coords[0], last = coords[coords.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) coords.push([first[0], first[1]]);
 
-  if (feature) {
-    const fc = { type: 'FeatureCollection', features: [feature] };
+      localityFeature = {
+        type: 'Feature',
+        properties: { name: hood.name },
+        geometry: { type: 'Polygon', coordinates: [coords] }
+      };
+    }
+  }
+
+  // ─── 2. Try NTA polygon from GeoJSON (parent neighborhood) ───
+  let ntaFeature = null;
+  if (hoodGeoData) {
+    const ntaCode = hood.parent ? getSubNTA(hoodId) : hoodId;
+    ntaFeature = hoodGeoData.features.find(f => f.properties.ntaCode === ntaCode);
+  }
+
+  // Choose the best polygon: locality (specific) > NTA (parent)
+  const primaryFeature = localityFeature || ntaFeature;
+
+  if (primaryFeature) {
+    const fc = { type: 'FeatureCollection', features: [primaryFeature] };
     const miniProj = d3.geoMercator().fitSize([w - 20, h - 20], fc);
     const miniPath = d3.geoPath().projection(miniProj);
     const g = svg.append('g').attr('transform', 'translate(10,10)');
 
+    // If we have both locality and NTA, draw NTA as faint context behind
+    if (localityFeature && ntaFeature) {
+      g.append('path')
+        .datum(ntaFeature)
+        .attr('d', miniPath)
+        .style('fill', 'rgba(0,0,0,0.02)')
+        .style('stroke', 'rgba(0,0,0,0.08)')
+        .style('stroke-width', 0.8)
+        .style('stroke-dasharray', '3,3');
+    }
+
+    // Draw primary polygon (filled with borough color)
     g.append('path')
-      .datum(feature)
+      .datum(primaryFeature)
       .attr('d', miniPath)
       .style('fill', color + '20')
       .style('stroke', color)
       .style('stroke-width', 1.5)
-      .style('stroke-opacity', 0.6);
+      .style('stroke-opacity', 0.7);
 
-    if (hood.parent) {
-      const projected = miniProj([hood.center[1], hood.center[0]]);
-      if (projected && !isNaN(projected[0])) {
-        g.append('circle')
-          .attr('cx', projected[0]).attr('cy', projected[1]).attr('r', 6)
-          .style('fill', color).style('stroke', '#fff').style('stroke-width', 2);
-        g.append('text')
-          .attr('x', projected[0]).attr('y', projected[1] - 10)
-          .text(hood.name)
-          .style('font-size', '8px').style('fill', '#fff')
-          .style('text-anchor', 'middle').style('font-family', 'Space Grotesk, sans-serif')
-          .style('font-weight', '600');
-      }
+    // Label at center
+    const centroid = d3.geoPath().projection(miniProj).centroid(primaryFeature);
+    if (centroid && !isNaN(centroid[0])) {
+      g.append('text')
+        .attr('x', centroid[0]).attr('y', centroid[1])
+        .text(hood.name)
+        .style('font-size', '9px').style('fill', '#1C1C1C')
+        .style('text-anchor', 'middle').style('font-family', 'Space Grotesk, sans-serif')
+        .style('font-weight', '700')
+        .style('paint-order', 'stroke')
+        .style('stroke', '#F9F7F3').style('stroke-width', '3px');
     }
 
+    // Draw spots
     allSpots.forEach((spot, i) => {
       const projected = miniProj([spot.lng, spot.lat]);
-      if (!projected) return;
+      if (!projected || isNaN(projected[0])) return;
       const isVisited = spot.spotType === 'restaurant' ? isRestaurantVisited(spot.id) : isAttractionVisited(spot.id);
       g.append('circle')
         .attr('cx', projected[0]).attr('cy', projected[1]).attr('r', 4)
-        .style('fill', isVisited ? color : 'rgba(255,255,255,0.3)')
-        .style('stroke', isVisited ? '#fff' : 'rgba(255,255,255,0.2)')
+        .style('fill', isVisited ? color : 'rgba(0,0,0,0.15)')
+        .style('stroke', isVisited ? '#fff' : 'rgba(0,0,0,0.1)')
         .style('stroke-width', 1);
       if (i < 5) {
         g.append('text')
           .attr('x', projected[0] + 6).attr('y', projected[1] + 3)
           .text(spot.name.length > 14 ? spot.name.substring(0, 13) + '…' : spot.name)
-          .style('font-size', '7px').style('fill', 'rgba(255,255,255,0.5)')
+          .style('font-size', '7px').style('fill', 'rgba(0,0,0,0.4)')
           .style('font-family', 'Space Grotesk, sans-serif').style('pointer-events', 'none');
       }
     });
     return;
   }
 
+  // ─── 3. Fallback: spot-based map (no polygon data available) ───
   if (allSpots.length > 0) {
     const lats = allSpots.map(s => s.lat);
     const lngs = allSpots.map(s => s.lng);
@@ -973,12 +1014,12 @@ function buildMiniMap(hoodId, color) {
       const y = h - 20 - (spot.lat - minLat) * scaleY;
       const isVisited = spot.spotType === 'restaurant' ? isRestaurantVisited(spot.id) : isAttractionVisited(spot.id);
       svg.append('circle').attr('cx', x).attr('cy', y).attr('r', 4)
-        .style('fill', isVisited ? color : 'rgba(255,255,255,0.3)')
+        .style('fill', isVisited ? color : 'rgba(0,0,0,0.15)')
         .style('stroke', '#fff').style('stroke-width', 1);
     });
   } else {
     svg.append('text').attr('x', w/2).attr('y', h/2).attr('text-anchor', 'middle')
-      .style('fill', 'rgba(255,255,255,0.3)').style('font-size', '12px')
+      .style('fill', 'rgba(0,0,0,0.25)').style('font-size', '12px')
       .text('No spots mapped yet');
   }
 }

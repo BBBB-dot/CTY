@@ -18,7 +18,7 @@ function initExplorerMap() {
 
   explorerMap = new mapboxgl.Map({
     container: 'explorer-map',
-    style: 'mapbox://styles/mapbox/dark-v11',
+    style: 'mapbox://styles/mapbox/light-v11',
     center: [-74.0060, 40.7128],
     zoom: 11
   });
@@ -64,7 +64,7 @@ function addMarkerToMap(type, item) {
   el.dataset.visited = visited;
 
   // Determine color
-  let color = type === 'restaurant' ? '#E8A838' : '#3AAFA9';
+  let color = type === 'restaurant' ? '#FF6319' : '#00933C';
   if (item.borough) {
     color = getBoroughColor(item.borough);
   }
@@ -136,7 +136,7 @@ function showExplorerPopup(type, id) {
     visitBtn.style.background = color;
   } else {
     visitBtn.textContent = 'Mark Visited';
-    visitBtn.style.background = 'rgba(255,20,147,0.2)';
+    visitBtn.style.background = 'rgba(247,201,72,0.15)';
   }
 
   const favBtn = document.getElementById('ep-fav-btn');
@@ -145,7 +145,7 @@ function showExplorerPopup(type, id) {
     favBtn.style.color = color;
   } else {
     favBtn.textContent = '♡';
-    favBtn.style.color = 'rgba(255,255,255,0.4)';
+    favBtn.style.color = '#A0A0A0';
   }
 
   popup.style.display = 'block';

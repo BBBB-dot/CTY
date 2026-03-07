@@ -8,7 +8,7 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Supabase JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.42.4"></script>
@@ -37,19 +37,28 @@
   <div class="loader-tagline">Every block has a story</div>
 </div>
 
-<!-- NAV BAR -->
+<!-- NAV BAR — Subway station signage style -->
 <nav class="main-nav">
   <div class="nav-logo">
-    <div class="logo-icon">▨</div>
+    <div class="nav-badge">C</div>
     <div>
       <div class="logo-name">CTY</div>
       <div class="logo-sub">NYC Explorer</div>
     </div>
   </div>
   <div class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('neighborhoods',this)">Neighborhoods</button>
-    <button class="nav-tab" onclick="switchTab('explorer',this)">Explorer</button>
-    <button class="nav-tab" onclick="switchTab('stamps',this)">Passport</button>
+    <button class="nav-tab active" onclick="switchTab('neighborhoods',this)">
+      <span class="route-dot" style="background:var(--mta-red)"></span>
+      Neighborhoods
+    </button>
+    <button class="nav-tab" onclick="switchTab('explorer',this)">
+      <span class="route-dot" style="background:var(--brooklyn)"></span>
+      Explorer
+    </button>
+    <button class="nav-tab" onclick="switchTab('stamps',this)">
+      <span class="route-dot" style="background:var(--staten)"></span>
+      Passport
+    </button>
   </div>
   <div class="nav-stats">
     <span><strong id="nav-hoods">0</strong> hoods</span>
@@ -57,9 +66,12 @@
     <span><strong id="nav-stamps-count">0</strong> stamps</span>
   </div>
   <div id="nav-auth" style="display:flex;align-items:center;gap:8px">
-    <button id="nav-auth-btn" onclick="openAuth()" style="padding:6px 14px;background:rgba(232,168,56,0.15);border:1px solid rgba(232,168,56,0.4);border-radius:20px;color:#E8A838;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Sign In</button>
+    <button id="nav-auth-btn" onclick="openAuth()" class="nav-auth-btn">Sign In</button>
   </div>
 </nav>
+
+<!-- MTA Color Strip -->
+<div class="mta-strip"></div>
 
 <!-- NEIGHBORHOODS PAGE -->
 <div class="page active" id="page-neighborhoods">
@@ -70,12 +82,12 @@
     </div>
     <div class="stats-row">
       <div class="stat-card">
-        <div class="sc-val"><span id="hoods-count">0</span>/<span id="hoods-total">233</span></div>
+        <div class="sc-val"><span id="hoods-count">0</span><span>/</span><span id="hoods-total">233</span></div>
         <div class="sc-label">Neighborhoods Explored</div>
         <div class="bar-track"><div class="bar-fill" id="hoods-bar"></div></div>
       </div>
       <div class="stat-card">
-        <div class="sc-val" id="hoods-pct">0%</div>
+        <div class="sc-val" id="hoods-pct" style="color:var(--mta-red)">0%</div>
         <div class="sc-label">of the city</div>
       </div>
       <div class="stat-card">
@@ -84,18 +96,18 @@
       </div>
     </div>
 
-    <!-- D3 Interactive Map -->
+    <!-- Mapbox GL Map -->
     <div class="hood-map-wrap">
       <div class="hood-map-legend">
-        <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15)"></span>Unvisited</span>
-        <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.35);border-color:rgba(255,255,255,0.4)"></span>Visited</span>
-        <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.8);border-color:#fff"></span>Lived</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#E0DCD4;border-color:#D0CCC4"></span> Unvisited</span>
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(0,0,0,0.15);border-color:rgba(0,0,0,0.2)"></span> Visited</span>
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(0,0,0,0.35);border-color:rgba(0,0,0,0.4)"></span> Lived</span>
         <span style="flex:1"></span>
-        <span class="legend-item"><span class="legend-dot" style="background:#E8A838;border-color:#E8A838"></span>Manhattan</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#3AAFA9;border-color:#3AAFA9"></span>Brooklyn</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#E07855;border-color:#E07855"></span>Queens</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#8B7FD4;border-color:#8B7FD4"></span>Bronx</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#7DAF6B;border-color:#7DAF6B"></span>SI</span>
+        <span class="legend-item"><span class="legend-badge" style="background:var(--manhattan)">M</span> Manhattan</span>
+        <span class="legend-item"><span class="legend-badge" style="background:var(--brooklyn)">B</span> Brooklyn</span>
+        <span class="legend-item"><span class="legend-badge" style="background:var(--queens)">Q</span> Queens</span>
+        <span class="legend-item"><span class="legend-badge" style="background:var(--bronx)">X</span> Bronx</span>
+        <span class="legend-item"><span class="legend-badge" style="background:var(--staten)">S</span> S.I.</span>
       </div>
       <div id="hood-map-container"></div>
       <div class="map-zoom-controls">
@@ -103,6 +115,11 @@
         <button class="zoom-btn" onclick="zoomMapOut()" title="Zoom out">−</button>
         <button class="zoom-btn reset" onclick="resetMapZoom()" title="Reset view">⟲</button>
       </div>
+      <!-- Subway layer toggle -->
+      <button class="subway-toggle" id="subway-toggle" onclick="toggleSubwayLines()" title="Show subway lines">
+        <span class="subway-toggle-icon">🚇</span>
+        <span class="subway-toggle-label">Subway</span>
+      </button>
     </div>
 
     <!-- Search + Borough Filter + Cards Grid -->
@@ -112,11 +129,26 @@
     </div>
     <div class="borough-filter">
       <button class="filter-btn active" data-borough="all" onclick="filterBorough('all',this)">All</button>
-      <button class="filter-btn manhattan" data-borough="manhattan" onclick="filterBorough('manhattan',this)">Manhattan</button>
-      <button class="filter-btn brooklyn" data-borough="brooklyn" onclick="filterBorough('brooklyn',this)">Brooklyn</button>
-      <button class="filter-btn queens" data-borough="queens" onclick="filterBorough('queens',this)">Queens</button>
-      <button class="filter-btn bronx" data-borough="bronx" onclick="filterBorough('bronx',this)">Bronx</button>
-      <button class="filter-btn staten" data-borough="staten_island" onclick="filterBorough('staten_island',this)">Staten Island</button>
+      <button class="filter-btn manhattan" data-borough="manhattan" onclick="filterBorough('manhattan',this)">
+        <span class="route-badge" style="background:var(--manhattan)">M</span>
+        Manhattan
+      </button>
+      <button class="filter-btn brooklyn" data-borough="brooklyn" onclick="filterBorough('brooklyn',this)">
+        <span class="route-badge" style="background:var(--brooklyn)">B</span>
+        Brooklyn
+      </button>
+      <button class="filter-btn queens" data-borough="queens" onclick="filterBorough('queens',this)">
+        <span class="route-badge" style="background:var(--queens)">Q</span>
+        Queens
+      </button>
+      <button class="filter-btn bronx" data-borough="bronx" onclick="filterBorough('bronx',this)">
+        <span class="route-badge" style="background:var(--bronx)">X</span>
+        Bronx
+      </button>
+      <button class="filter-btn staten" data-borough="staten_island" onclick="filterBorough('staten_island',this)">
+        <span class="route-badge" style="background:var(--staten)">S</span>
+        Staten Island
+      </button>
     </div>
 
     <div class="neighborhoods-grid" id="neighborhoods-grid"></div>
@@ -225,20 +257,20 @@
   </div>
 </div>
 
-<!-- AUTH MODAL -->
-<div id="auth-overlay" style="display:none;position:fixed;inset:0;background:rgba(8,10,15,0.9);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:#1A1E28;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;width:340px;max-width:90vw;position:relative">
-    <button onclick="closeAuth()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer">✕</button>
-    <div style="font-size:22px;font-weight:700;margin-bottom:4px;color:#fff" id="auth-title">Sign In</div>
-    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:24px" id="auth-sub">Your collection syncs across all devices</div>
-    <div id="auth-error" style="display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#f87171;margin-bottom:16px"></div>
-    <input id="auth-name" placeholder="Your name" type="text" style="display:none;width:100%;padding:11px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:14px;margin-bottom:10px;font-family:inherit;outline:none;box-sizing:border-box">
-    <input id="auth-email" placeholder="Email address" type="email" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:14px;margin-bottom:10px;font-family:inherit;outline:none;box-sizing:border-box">
-    <input id="auth-password" placeholder="Password" type="password" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:14px;margin-bottom:20px;font-family:inherit;outline:none;box-sizing:border-box">
-    <button id="auth-submit" onclick="submitAuth()" style="width:100%;padding:12px;background:#E8A838;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:0.5px">Sign In</button>
-    <div style="text-align:center;margin-top:16px;font-size:12px;color:rgba(255,255,255,0.5)">
+<!-- AUTH MODAL — Light NYC theme -->
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#FFFFFF;border:1.5px solid #E5E0D6;border-radius:16px;padding:32px;width:340px;max-width:90vw;position:relative;box-shadow:0 24px 64px rgba(0,0,0,0.15)">
+    <button onclick="closeAuth()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:#A0A0A0;font-size:18px;cursor:pointer">✕</button>
+    <div style="font-size:22px;font-weight:800;margin-bottom:4px;color:#1C1C1C;font-family:'Syne',serif" id="auth-title">Sign In</div>
+    <div style="font-size:13px;color:#6B6B6B;margin-bottom:24px" id="auth-sub">Your collection syncs across all devices</div>
+    <div id="auth-error" style="display:none;background:rgba(238,53,46,0.06);border:1px solid rgba(238,53,46,0.2);border-radius:8px;padding:10px 12px;font-size:12px;color:#EE352E;margin-bottom:16px"></div>
+    <input id="auth-name" placeholder="Your name" type="text" style="display:none;width:100%;padding:11px 14px;background:#F9F7F3;border:1.5px solid #E5E0D6;border-radius:10px;color:#1C1C1C;font-size:14px;margin-bottom:10px;font-family:inherit;outline:none;box-sizing:border-box">
+    <input id="auth-email" placeholder="Email address" type="email" style="width:100%;padding:11px 14px;background:#F9F7F3;border:1.5px solid #E5E0D6;border-radius:10px;color:#1C1C1C;font-size:14px;margin-bottom:10px;font-family:inherit;outline:none;box-sizing:border-box">
+    <input id="auth-password" placeholder="Password" type="password" style="width:100%;padding:11px 14px;background:#F9F7F3;border:1.5px solid #E5E0D6;border-radius:10px;color:#1C1C1C;font-size:14px;margin-bottom:20px;font-family:inherit;outline:none;box-sizing:border-box">
+    <button id="auth-submit" onclick="submitAuth()" style="width:100%;padding:12px;background:#F7C948;border:none;border-radius:10px;color:#1C1C1C;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:0.5px">Sign In</button>
+    <div style="text-align:center;margin-top:16px;font-size:12px;color:#6B6B6B">
       <span id="auth-toggle-text">Don't have an account?</span>
-      <button onclick="toggleAuthMode()" style="background:none;border:none;color:#E8A838;cursor:pointer;font-size:12px;font-family:inherit;padding-left:4px" id="auth-toggle-btn">Sign Up</button>
+      <button onclick="toggleAuthMode()" style="background:none;border:none;color:#006B3F;cursor:pointer;font-size:12px;font-family:inherit;padding-left:4px;font-weight:600" id="auth-toggle-btn">Sign Up</button>
     </div>
   </div>
 </div>
@@ -252,6 +284,7 @@
 <script src="data/neighborhood-priority.js"></script>
 <script src="data/restaurants.js"></script>
 <script src="data/attractions.js"></script>
+<script src="data/subway-data.js"></script>
 
 <!-- Core modules -->
 <script src="js/auth.js"></script>
@@ -260,6 +293,7 @@
 <script src="js/neighborhoods.js"></script>
 <script src="js/explorer.js"></script>
 <script src="js/stamps.js"></script>
+<script src="js/subway.js"></script>
 <script src="js/init.js"></script>
 
 </body>

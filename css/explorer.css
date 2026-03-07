@@ -1,5 +1,6 @@
 /* ============================================
    CTY - Explorer (Map) Page Stylesheet
+   NYC Identity Light Theme
    ============================================ */
 
 /* ============================================
@@ -8,7 +9,7 @@
 
 .explorer-layout {
   width: 100%;
-  height: calc(100vh - 64px);
+  height: calc(100vh - 58px);
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -19,7 +20,7 @@
   background: var(--surface);
   border-radius: 0;
   overflow: hidden;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
   position: relative;
 }
 
@@ -34,7 +35,7 @@
 
 .explorer-toolbar {
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
   padding: 12px 16px;
   display: flex;
   align-items: center;
@@ -48,7 +49,7 @@
 }
 
 .explorer-toolbar::-webkit-scrollbar-thumb {
-  background: var(--surface-3);
+  background: var(--border);
   border-radius: 2px;
 }
 
@@ -87,7 +88,7 @@
   max-height: 80vh;
   overflow-y: auto;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow-lg);
   animation: popupSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -107,7 +108,7 @@
 .ep-header {
   min-height: 70px;
   padding: 16px;
-  background: linear-gradient(135deg, rgba(232, 168, 56, 0.08), rgba(58, 175, 169, 0.08));
+  background: linear-gradient(135deg, rgba(252, 204, 10, 0.08), rgba(0, 147, 60, 0.06));
   border-bottom: 1px solid var(--border);
   position: relative;
   display: flex;
@@ -116,15 +117,15 @@
 }
 
 .ep-header.restaurant {
-  background: linear-gradient(135deg, rgba(224, 120, 85, 0.12), rgba(232, 168, 56, 0.08));
+  background: linear-gradient(135deg, rgba(255, 99, 25, 0.10), rgba(252, 204, 10, 0.06));
 }
 
 .ep-header.attraction {
-  background: linear-gradient(135deg, rgba(58, 175, 169, 0.12), rgba(125, 175, 107, 0.08));
+  background: linear-gradient(135deg, rgba(0, 147, 60, 0.10), rgba(0, 57, 166, 0.06));
 }
 
 .ep-header.landmark {
-  background: linear-gradient(135deg, rgba(139, 127, 212, 0.12), rgba(232, 168, 56, 0.08));
+  background: linear-gradient(135deg, rgba(185, 51, 173, 0.10), rgba(252, 204, 10, 0.06));
 }
 
 .ep-body {
@@ -192,35 +193,35 @@
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
+  transition: all 0.15s;
+  border: 1.5px solid transparent;
   text-align: center;
   white-space: nowrap;
 }
 
 .ep-btn.visit {
-  background: var(--accent);
-  color: #000;
-  box-shadow: 0 0 12px rgba(232, 168, 56, 0.3);
+  background: var(--metrocard);
+  color: #1C1C1C;
+  border-color: var(--metrocard);
 }
 
 .ep-btn.visit:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 16px rgba(232, 168, 56, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(247, 201, 72, 0.3);
 }
 
 .ep-btn.visit.visited {
-  background: var(--neon-brooklyn);
-  color: #000;
-  box-shadow: 0 0 12px rgba(58, 175, 169, 0.3);
+  background: var(--brooklyn);
+  color: #fff;
+  border-color: var(--brooklyn);
 }
 
 .ep-btn.fav {
   background: transparent;
   color: var(--text-2);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
 }
 
 .ep-btn.fav:hover {
@@ -230,8 +231,8 @@
 
 .ep-btn.fav.favorited {
   background: var(--surface-2);
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--metrocard);
+  border-color: var(--metrocard);
 }
 
 /* ============================================
@@ -242,59 +243,59 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.6);
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .cty-marker:hover {
   transform: scale(1.5);
   z-index: 10;
-  border-color: rgba(255, 255, 255, 0.8);
+  border-color: #fff;
 }
 
 .cty-marker.restaurant {
-  background: #FF6B35;
-  border-color: #FF6B35;
-  box-shadow: 0 0 8px rgba(255, 107, 53, 0.5);
+  background: var(--queens);
+  border-color: var(--queens);
+  box-shadow: 0 1px 6px rgba(255, 99, 25, 0.4);
 }
 
 .cty-marker.restaurant:hover {
-  box-shadow: 0 0 16px rgba(255, 107, 53, 0.7);
+  box-shadow: 0 2px 12px rgba(255, 99, 25, 0.6);
 }
 
 .cty-marker.attraction {
-  background: var(--neon-brooklyn);
-  border-color: var(--neon-brooklyn);
-  box-shadow: 0 0 8px rgba(58, 175, 169, 0.5);
+  background: var(--brooklyn);
+  border-color: var(--brooklyn);
+  box-shadow: 0 1px 6px rgba(0, 147, 60, 0.4);
 }
 
 .cty-marker.attraction:hover {
-  box-shadow: 0 0 16px rgba(58, 175, 169, 0.7);
+  box-shadow: 0 2px 12px rgba(0, 147, 60, 0.6);
 }
 
 .cty-marker.landmark {
-  background: var(--neon-bronx);
-  border-color: var(--neon-bronx);
-  box-shadow: 0 0 8px rgba(139, 127, 212, 0.5);
+  background: var(--bronx);
+  border-color: var(--bronx);
+  box-shadow: 0 1px 6px rgba(185, 51, 173, 0.4);
 }
 
 .cty-marker.landmark:hover {
-  box-shadow: 0 0 16px rgba(139, 127, 212, 0.7);
+  box-shadow: 0 2px 12px rgba(185, 51, 173, 0.6);
 }
 
 .cty-marker.visited {
-  background: var(--neon-queens);
-  border-color: var(--neon-queens);
-  box-shadow: 0 0 12px var(--neon-queens);
+  background: var(--manhattan);
+  border-color: var(--manhattan);
+  box-shadow: 0 1px 8px rgba(252, 204, 10, 0.5);
 }
 
 .cty-marker.visited:hover {
-  box-shadow: 0 0 20px var(--neon-queens);
+  box-shadow: 0 2px 14px rgba(252, 204, 10, 0.7);
 }
 
 .cty-marker-label {
@@ -305,14 +306,14 @@
   white-space: nowrap;
   font-size: 10px;
   font-weight: 600;
-  color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  color: var(--text);
   pointer-events: none;
   display: none;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(255, 255, 255, 0.9);
   padding: 2px 6px;
   border-radius: 4px;
   z-index: 20;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
 
 .mapboxgl-map[data-zoom-high] .cty-marker-label {
@@ -325,7 +326,7 @@
 
 .mapboxgl-ctrl {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
 }
@@ -339,7 +340,7 @@
 
 .mapboxgl-ctrl button:hover {
   background: var(--surface-2);
-  color: var(--accent);
+  color: var(--metrocard);
 }
 
 .mapboxgl-ctrl-group {
@@ -373,8 +374,8 @@
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid var(--surface-3);
-  border-top-color: var(--accent);
+  border: 2px solid var(--border);
+  border-top-color: var(--metrocard);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   margin-right: 8px;
@@ -393,7 +394,7 @@
 
 @media (max-width: 768px) {
   .explorer-layout {
-    height: calc(100vh - 56px);
+    height: calc(100vh - 52px);
   }
 
   .explorer-popup {

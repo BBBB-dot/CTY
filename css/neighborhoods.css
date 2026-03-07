@@ -1,18 +1,19 @@
 /* ============================================
    CTY - Neighborhoods Page Stylesheet
+   NYC Identity Light Theme
    Mapbox GL JS Map + Cards Grid + Detail Popup
    ============================================ */
 
 /* ============================================
-   MAP CONTAINER (Mapbox GL handles rotation natively via bearing)
+   MAP CONTAINER
    ============================================ */
 
 .hood-map-wrap {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
   border-radius: 16px;
   padding: 0;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   position: relative;
   overflow: hidden;
   min-height: 400px;
@@ -32,7 +33,51 @@
 }
 
 /* ============================================
-   ZOOM CONTROLS (no counter-rotation needed — bearing is native)
+   MAP LEGEND — Borough route badges
+   ============================================ */
+
+.hood-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  padding: 10px 16px;
+  font-size: 10px;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1.5px solid var(--border);
+}
+
+/* Borough legend badges (circles with letters) */
+.legend-badge {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* ============================================
+   ZOOM CONTROLS
    ============================================ */
 
 .map-zoom-controls {
@@ -49,9 +94,9 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: rgba(19,22,32,0.92);
-  border: 1px solid rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.92);
+  border: 1.5px solid var(--border);
+  color: var(--text);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
@@ -61,42 +106,19 @@
   transition: all 0.15s;
   backdrop-filter: blur(8px);
   font-family: 'Space Grotesk', sans-serif;
+  box-shadow: var(--shadow-sm);
 }
 
 .zoom-btn:hover {
-  background: rgba(37,42,53,0.95);
-  color: #fff;
-  border-color: rgba(255,255,255,0.3);
+  background: #fff;
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
 }
 
 .zoom-btn.reset {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
-}
-
-/* Map Legend */
-.hood-map-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  margin-bottom: 12px;
-  padding: 0 4px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  border: 1px solid rgba(255,255,255,0.2);
 }
 
 /* ============================================
@@ -109,11 +131,11 @@
 
 .hood-search {
   width: 100%;
-  padding: 10px 14px 10px 36px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
-  color: #fff;
+  padding: 11px 14px 11px 38px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
   font-size: 13px;
   font-family: 'Space Grotesk', sans-serif;
   outline: none;
@@ -122,20 +144,21 @@
 }
 
 .hood-search:focus {
-  border-color: rgba(255,255,255,0.25);
+  border-color: var(--metrocard);
+  box-shadow: 0 0 0 3px rgba(247, 201, 72, 0.2);
 }
 
 .hood-search::placeholder {
-  color: rgba(255,255,255,0.3);
+  color: var(--text-3);
 }
 
 .hood-search-icon {
   position: absolute;
-  left: 12px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: rgba(255,255,255,0.3);
-  font-size: 14px;
+  color: var(--text-3);
+  font-size: 15px;
   pointer-events: none;
 }
 
@@ -150,18 +173,18 @@
 }
 
 /* ============================================
-   NEIGHBORHOOD CARD (compact for 197 items)
+   NEIGHBORHOOD CARD
    ============================================ */
 
 .hood-btn {
   padding: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  border: 1.5px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.5);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
   text-align: center;
   transition: all 0.15s;
   font-family: 'Space Grotesk', sans-serif;
@@ -170,20 +193,17 @@
 }
 
 .hood-btn:hover {
-  border-color: rgba(255,255,255,0.25);
-  color: #fff;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  border-color: var(--border-hover);
 }
 
 .hood-btn.visited {
-  border-color: rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.06);
+  border-color: var(--border-hover);
 }
 
 .hood-btn.lived {
-  border-color: rgba(255,255,255,0.25);
-  background: rgba(255,255,255,0.08);
+  border-color: var(--border-hover);
 }
 
 .hood-btn.sub-hood {
@@ -191,9 +211,9 @@
 }
 
 .hb-accent {
-  height: 3px;
+  height: 4px;
   width: 100%;
-  opacity: 0.3;
+  opacity: 0.2;
   transition: opacity 0.15s;
 }
 
@@ -203,40 +223,44 @@
 }
 
 .hood-btn:hover .hb-accent {
-  opacity: 0.8;
+  opacity: 0.6;
 }
 
 .hb-abbr {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   padding-top: 6px;
   letter-spacing: 0.5px;
+  font-family: 'Inter', 'Space Grotesk', sans-serif;
 }
 
 .hb-name {
-  font-size: 8px;
-  color: rgba(255,255,255,0.35);
+  font-size: 7px;
+  color: var(--text-3);
   margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0 3px;
+  padding: 0 4px;
 }
 
 .hood-btn.visited .hb-name,
 .hood-btn.lived .hb-name {
-  color: rgba(255,255,255,0.6);
+  color: var(--text-2);
 }
 
 .hb-meta {
-  font-size: 7px;
-  color: rgba(255,255,255,0.25);
-  padding: 1px 0 5px;
+  font-size: 6px;
+  font-weight: 700;
+  color: var(--text-3);
+  padding: 2px 0 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .hood-btn.visited .hb-meta,
 .hood-btn.lived .hb-meta {
-  color: rgba(255,255,255,0.4);
+  color: var(--text-2);
 }
 
 /* ============================================
@@ -245,10 +269,11 @@
 
 .borough-filter {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 7px;
+  margin-bottom: 14px;
   overflow-x: auto;
   padding-bottom: 4px;
+  flex-wrap: wrap;
 }
 
 .borough-filter::-webkit-scrollbar {
@@ -256,7 +281,7 @@
 }
 
 .borough-filter::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
+  background: var(--border);
   border-radius: 2px;
 }
 
@@ -267,7 +292,7 @@
 .hood-detail-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0,0,0,0.3);
   backdrop-filter: blur(4px);
   z-index: 900;
   opacity: 0;
@@ -281,7 +306,7 @@
 }
 
 /* ============================================
-   DETAIL POPUP (neighborhood card expanded)
+   DETAIL POPUP
    ============================================ */
 
 .hood-detail {
@@ -292,12 +317,12 @@
   width: 420px;
   max-width: 92vw;
   max-height: 85vh;
-  background: #131620;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
   border-radius: 16px;
   z-index: 950;
   overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.15);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -310,13 +335,13 @@
 }
 
 .hd-accent {
-  height: 4px;
+  height: 5px;
   width: 100%;
   border-radius: 16px 16px 0 0;
 }
 
 .hd-inner {
-  padding: 16px 20px 24px;
+  padding: 18px 20px 24px;
 }
 
 .hd-head {
@@ -330,7 +355,7 @@
   font-family: 'Syne', serif;
   font-size: 22px;
   font-weight: 800;
-  color: #fff;
+  color: var(--text);
   margin: 0 0 2px 0;
   line-height: 1.2;
 }
@@ -339,12 +364,12 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .hd-close {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
   border-radius: 50%;
   width: 30px;
   height: 30px;
@@ -352,21 +377,21 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: rgba(255,255,255,0.5);
+  color: var(--text-3);
   transition: all 0.2s;
   font-size: 16px;
   flex-shrink: 0;
 }
 
 .hd-close:hover {
-  color: #fff;
-  border-color: rgba(255,255,255,0.3);
-  background: rgba(255,255,255,0.1);
+  color: var(--text);
+  border-color: var(--border-hover);
+  background: var(--surface-3);
 }
 
 .hd-desc {
   font-size: 13px;
-  color: rgba(255,255,255,0.55);
+  color: var(--text-2);
   margin-bottom: 12px;
   line-height: 1.6;
 }
@@ -380,10 +405,12 @@
 
 .hd-tag {
   font-size: 10px;
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid var(--border);
   padding: 3px 10px;
   border-radius: 12px;
   text-transform: capitalize;
+  color: var(--text-2);
+  background: var(--surface-2);
 }
 
 /* ============================================
@@ -399,12 +426,12 @@
 .hd-status-btn {
   flex: 1;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 12px;
-  font-weight: 600;
-  border: 1.5px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.5);
+  font-weight: 700;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
   cursor: pointer;
   transition: all 0.15s;
   font-family: 'Space Grotesk', sans-serif;
@@ -412,13 +439,243 @@
 }
 
 .hd-status-btn:hover {
-  border-color: rgba(255,255,255,0.3);
-  color: rgba(255,255,255,0.8);
-  background: rgba(255,255,255,0.1);
+  border-color: var(--border-hover);
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .hd-status-btn.active {
   font-weight: 700;
+}
+
+/* ============================================
+   SUBWAY TOGGLE BUTTON
+   ============================================ */
+
+.subway-toggle {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.92);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.15s;
+  font-family: 'Space Grotesk', sans-serif;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+}
+
+.subway-toggle:hover {
+  background: #fff;
+  border-color: var(--border-hover);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+}
+
+.subway-toggle.active {
+  background: #1C1C1C;
+  border-color: #1C1C1C;
+  color: #fff;
+}
+
+.subway-toggle-icon {
+  font-size: 14px;
+}
+
+.subway-toggle-label {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================
+   SUBWAY LINE INFO POPUP
+   ============================================ */
+
+.subway-info-popup {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 15;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  width: 280px;
+  overflow: hidden;
+  animation: popupSlideIn 0.25s ease-out;
+}
+
+@keyframes popupSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.subway-info-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subway-info-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.subway-info-title {
+  font-family: 'Syne', serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.subway-info-subtitle {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+
+.subway-info-close {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.subway-info-close:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.subway-info-body {
+  padding: 12px 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.subway-info-stops {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.subway-stop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 11px;
+  color: var(--text-2);
+  position: relative;
+}
+
+.subway-stop-item.highlighted {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.subway-stop-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid;
+  background: var(--surface);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.subway-stop-item.highlighted .subway-stop-dot {
+  background: currentColor;
+}
+
+.subway-stop-line {
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  z-index: 1;
+}
+
+.subway-stop-item:first-child .subway-stop-line {
+  top: 50%;
+}
+
+.subway-stop-item:last-child .subway-stop-line {
+  bottom: 50%;
+}
+
+/* Train animation marker */
+.subway-train-marker {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: none;
+  z-index: 20;
+}
+
+.subway-info-actions {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.subway-ride-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Space Grotesk', sans-serif;
+  color: #fff;
+}
+
+.subway-ride-btn:hover {
+  transform: translateY(-1px);
+}
+
+.subway-ride-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* ============================================
@@ -449,7 +706,7 @@
 
 .hd-progress-text {
   font-size: 11px;
-  color: rgba(255,255,255,0.4);
+  color: var(--text-3);
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -462,7 +719,7 @@
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 2px;
-  color: rgba(255,255,255,0.3);
+  color: var(--text-3);
   font-weight: 700;
   margin-bottom: 8px;
   margin-top: 12px;
@@ -482,7 +739,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--border);
   transition: background 0.15s;
 }
 
@@ -491,7 +748,7 @@
 }
 
 .hd-spot-row.visited {
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .hd-spot-info {
@@ -502,27 +759,27 @@
 .hd-spot-name {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255,255,255,0.85);
+  color: var(--text);
   line-height: 1.3;
 }
 
 .hd-spot-category {
   font-size: 10px;
-  color: rgba(255,255,255,0.35);
+  color: var(--text-3);
   margin-top: 1px;
 }
 
 .hd-spot-check {
   width: 18px;
   height: 18px;
-  accent-color: #E8A838;
+  accent-color: var(--metrocard);
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .hd-empty {
   font-size: 12px;
-  color: rgba(255,255,255,0.25);
+  color: var(--text-3);
   padding: 8px 0;
   font-style: italic;
 }
@@ -548,7 +805,7 @@
   }
 
   .borough-filter {
-    gap: 8px;
+    gap: 6px;
   }
 
   .map-zoom-controls {
