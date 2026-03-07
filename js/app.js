@@ -112,25 +112,32 @@ function getBoroughColor(id) {
   return BOROUGH_COLORS[id] || '#FF1493';
 }
 
-// Get all spots in a neighborhood
+// Get parent CTY ID for an NTA code (for spot lookup)
+function getParentCTY(ntaCode) {
+  if (typeof NTA_TO_PARENT !== 'undefined' && NTA_TO_PARENT[ntaCode]) {
+    return NTA_TO_PARENT[ntaCode];
+  }
+  return ntaCode; // fallback: try using the code directly
+}
+
+// Get all spots in a neighborhood (NTA code → parent CTY for spot lookup)
 function getNeighborhoodSpots(hoodId) {
-  const hood = NEIGHBORHOODS.find(h => h.id === hoodId);
-  if (!hood) return { restaurants: [], attractions: [] };
-
-  const restaurants = RESTAURANTS.filter(r => r.neighborhood === hoodId);
-  const attractions = ATTRACTIONS.filter(a => a.neighborhood === hoodId);
-
+  const parentId = getParentCTY(hoodId);
+  const restaurants = RESTAURANTS.filter(r => r.neighborhood === parentId || r.neighborhood === hoodId);
+  const attractions = ATTRACTIONS.filter(a => a.neighborhood === parentId || a.neighborhood === hoodId);
   return { restaurants, attractions };
 }
 
 // Get all restaurants in a neighborhood
 function getNeighborhoodRestaurants(hoodId) {
-  return RESTAURANTS.filter(r => r.neighborhood === hoodId);
+  const parentId = getParentCTY(hoodId);
+  return RESTAURANTS.filter(r => r.neighborhood === parentId || r.neighborhood === hoodId);
 }
 
 // Get all attractions in a neighborhood
 function getNeighborhoodAttractions(hoodId) {
-  return ATTRACTIONS.filter(a => a.neighborhood === hoodId);
+  const parentId = getParentCTY(hoodId);
+  return ATTRACTIONS.filter(a => a.neighborhood === parentId || a.neighborhood === hoodId);
 }
 
 // Get restaurant by ID

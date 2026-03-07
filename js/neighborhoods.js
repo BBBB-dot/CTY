@@ -1,12 +1,70 @@
-// Neighborhoods Page — Real NYC NTA Boundary Map + Cards + Detail Popup
+// Neighborhoods Page — 197 NTA Map with Animated Zoom + Cards + Detail Popup
 
 let currentFilter = 'all';
+let currentSearch = '';
 let currentHoodId = null;
 let hoodGeoData = null;
 let hoodSvg = null;
 let hoodProjection = null;
 let hoodPath = null;
 let hoodMapReady = false;
+let hoodZoom = null;
+let mapGroup = null;
+let mapW = 0;
+let mapH = 0;
+
+// ─── Borough color variation (creates distinct shades per NTA) ──
+function getNTAFill(ntaCode, borough, index, total) {
+  const base = getBoroughColor(borough);
+  // Parse hex to HSL, vary hue ±25° and lightness ±10%
+  const r = parseInt(base.slice(1, 3), 16) / 255;
+  const g = parseInt(base.slice(3, 5), 16) / 255;
+  const b = parseInt(base.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+
+  // Vary hue and lightness based on position in borough
+  const t = total > 1 ? index / (total - 1) : 0.5;
+  const hueShift = (t - 0.5) * 0.14; // ±25° in 0-1 range
+  const lightShift = (t - 0.5) * 0.15;
+
+  h = ((h + hueShift) % 1 + 1) % 1;
+  l = Math.max(0.15, Math.min(0.65, l + lightShift));
+
+  return hslToHex(h, s, l);
+}
+
+function hslToHex(h, s, l) {
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  };
+  let r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return '#' + [r, g, b].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
+}
 
 // ─── Load GeoJSON and render map ───────────────────────────────
 function initHoodMap() {
@@ -15,61 +73,89 @@ function initHoodMap() {
   const container = document.getElementById('hood-map-container');
   if (!container) return;
 
-  const w = container.clientWidth || 900;
-  const h = Math.round(w * 0.85); // taller aspect for NYC's vertical shape
+  mapW = container.clientWidth || 900;
+  mapH = Math.round(mapW * 0.85);
 
   hoodSvg = d3.select('#hood-map-container')
     .append('svg')
-    .attr('viewBox', `0 0 ${w} ${h}`)
+    .attr('viewBox', `0 0 ${mapW} ${mapH}`)
     .attr('preserveAspectRatio', 'xMidYMid meet')
     .style('width', '100%')
     .style('height', 'auto')
     .style('background', 'transparent');
 
+  // Create a group for all map content (will be transformed by zoom)
+  mapGroup = hoodSvg.append('g');
+
+  // Setup D3 zoom
+  hoodZoom = d3.zoom()
+    .scaleExtent([1, 12])
+    .on('zoom', function(event) {
+      mapGroup.attr('transform', event.transform);
+      // Scale labels inversely to stay readable
+      const k = event.transform.k;
+      mapGroup.selectAll('.hood-label')
+        .style('font-size', Math.max(3, 6 / k) + 'px')
+        .style('opacity', k > 2 ? 0.7 : 0.45);
+      // Scale strokes inversely
+      mapGroup.selectAll('.nta-path')
+        .style('stroke-width', 0.5 / k);
+      mapGroup.selectAll('.bg-path')
+        .style('stroke-width', 0.3 / k);
+    });
+
+  hoodSvg.call(hoodZoom);
+
+  // Click on SVG background to reset zoom
+  hoodSvg.on('click', function(event) {
+    if (event.target === this || event.target.tagName === 'svg') {
+      resetMapZoom();
+    }
+  });
+
   d3.json('data/nyc-neighborhoods.json').then(function(geo) {
     hoodGeoData = geo;
 
-    // Focus projection on main city mass (exclude Rockaways stretching bounds)
-    // Custom bbox: roughly from Tottenville to northern Bronx, western NJ border to eastern Queens
+    // Focus projection on main city mass
     const focusBbox = {
       type: 'FeatureCollection',
       features: [{
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [-74.26, 40.49],  // SW corner (Staten Island south)
-            [-74.26, 40.92],  // NW corner (Bronx north)
-            [-73.70, 40.92],  // NE corner (eastern Queens)
-            [-73.70, 40.49],  // SE corner
-            [-74.26, 40.49]
-          ]]
-        }
+        type: 'Feature', properties: {},
+        geometry: { type: 'Polygon', coordinates: [[
+          [-74.20, 40.50], [-74.20, 40.92], [-73.70, 40.92], [-73.70, 40.50], [-74.20, 40.50]
+        ]]}
       }]
     };
-    hoodProjection = d3.geoMercator()
-      .fitSize([w - 20, h - 20], focusBbox);
-
+    hoodProjection = d3.geoMercator().fitSize([mapW - 20, mapH - 20], focusBbox);
     hoodPath = d3.geoPath().projection(hoodProjection);
 
-    // Separate features: mapped neighborhoods vs background
-    const mapped = [];
+    // Separate features
+    const ntaPaths = [];  // type 0 = residential neighborhoods
     const background = [];
 
     geo.features.forEach(f => {
-      const ntaName = f.properties.name;
-      const ctyId = NTA_TO_CTY[ntaName];
-      if (ctyId) {
-        f.properties.ctyId = ctyId;
-        mapped.push(f);
+      const code = NTA_NAME_TO_CODE[f.properties.name];
+      if (f.properties.ntatype === '0' && code) {
+        f.properties.ntaCode = code;
+        ntaPaths.push(f);
       } else {
         background.push(f);
       }
     });
 
-    // Draw background features first (parks, water, unmapped areas)
-    hoodSvg.selectAll('.bg-path')
+    // Count NTAs per borough for color variation
+    const boroughCounts = {};
+    const boroughIndices = {};
+    ntaPaths.forEach(f => {
+      const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
+      if (!boroughCounts[boro]) boroughCounts[boro] = 0;
+      boroughCounts[boro]++;
+    });
+    // Track index per borough
+    const boroughIdx = {};
+
+    // Draw background features (parks, water, unmapped)
+    mapGroup.selectAll('.bg-path')
       .data(background)
       .enter()
       .append('path')
@@ -77,57 +163,62 @@ function initHoodMap() {
       .attr('d', hoodPath)
       .style('fill', function(d) {
         const t = d.properties.ntatype;
-        if (t === '5') return '#0c1a14'; // parks
-        if (t === '6' || t === '8') return '#080e12'; // water/airports/cemeteries
-        if (t === '7' || t === '9') return '#0a0a0e'; // misc non-residential
-        return '#151515'; // unmapped residential neighborhoods
+        if (t === '5') return '#0c1a14';
+        if (t === '6' || t === '8') return '#080e12';
+        if (t === '7' || t === '9') return '#0a0a0e';
+        return '#131313';
       })
-      .style('stroke', 'rgba(255,255,255,0.06)')
+      .style('stroke', 'rgba(255,255,255,0.04)')
       .style('stroke-width', 0.3);
 
-    // Draw mapped neighborhood paths
-    hoodSvg.selectAll('.hood-path')
-      .data(mapped)
+    // Draw all 197 NTA paths
+    mapGroup.selectAll('.nta-path')
+      .data(ntaPaths)
       .enter()
       .append('path')
-      .attr('class', 'hood-path')
+      .attr('class', 'nta-path')
       .attr('d', hoodPath)
-      .attr('data-id', d => d.properties.ctyId)
-      .attr('data-nta', d => d.properties.name)
-      .attr('data-borough', d => d.properties.borough ? d.properties.borough.toLowerCase().replace(/ /g, '_') : '')
+      .attr('data-code', d => d.properties.ntaCode)
+      .attr('data-borough', d => d.properties.borough.toLowerCase().replace(/ /g, '_'))
+      .each(function(d) {
+        const boro = d.properties.borough.toLowerCase().replace(/ /g, '_');
+        if (!boroughIdx[boro]) boroughIdx[boro] = 0;
+        const idx = boroughIdx[boro]++;
+        const total = boroughCounts[boro];
+        d.properties._fill = getNTAFill(d.properties.ntaCode, boro, idx, total);
+        d.properties._boro = boro;
+      })
       .on('click', function(event, d) {
         event.stopPropagation();
-        openHoodDetail(d.properties.ctyId);
+        zoomToFeature(d);
+        openHoodDetail(d.properties.ntaCode);
       })
       .on('mouseenter', function(event, d) {
-        showHoodTooltip(event, d.properties.ctyId);
+        showHoodTooltip(event, d.properties.ntaCode);
       })
       .on('mouseleave', hideHoodTooltip);
 
-    // Add neighborhood labels (one per CTY neighborhood, at centroid of first NTA)
-    const labeledIds = new Set();
-    mapped.forEach(f => {
-      const ctyId = f.properties.ctyId;
-      if (labeledIds.has(ctyId)) return;
-      labeledIds.add(ctyId);
-
+    // Add NTA labels at centroids
+    ntaPaths.forEach(f => {
       const centroid = hoodPath.centroid(f);
       if (isNaN(centroid[0])) return;
 
-      hoodSvg.append('text')
+      const hood = getNeighborhoodById(f.properties.ntaCode);
+      const shortName = hood ? getHoodAbbr(hood.name) : f.properties.name.substring(0, 4);
+
+      mapGroup.append('text')
         .attr('class', 'hood-label')
         .attr('x', centroid[0])
         .attr('y', centroid[1])
-        .text(getHoodAbbr(ctyId))
-        .style('font-size', '6.5px')
+        .text(shortName)
+        .style('font-size', '6px')
         .style('pointer-events', 'none');
     });
 
-    // Add borough labels (large, semi-transparent)
+    // Add borough name labels
     const boroughCentroids = {};
-    mapped.forEach(f => {
+    ntaPaths.forEach(f => {
       const boro = f.properties.borough;
-      if (!boro) return;
       const c = hoodPath.centroid(f);
       if (isNaN(c[0])) return;
       if (!boroughCentroids[boro]) boroughCentroids[boro] = { x: 0, y: 0, n: 0 };
@@ -138,7 +229,7 @@ function initHoodMap() {
 
     Object.entries(boroughCentroids).forEach(([boro, data]) => {
       const boroKey = boro.toLowerCase().replace(/ /g, '_');
-      hoodSvg.append('text')
+      mapGroup.append('text')
         .attr('class', 'borough-label')
         .attr('x', data.x / data.n)
         .attr('y', data.y / data.n)
@@ -146,7 +237,7 @@ function initHoodMap() {
         .style('font-size', '14px')
         .style('font-weight', '800')
         .style('fill', getBoroughColor(boroKey))
-        .style('fill-opacity', 0.15)
+        .style('fill-opacity', 0.12)
         .style('text-anchor', 'middle')
         .style('pointer-events', 'none')
         .style('font-family', 'Syne, sans-serif')
@@ -161,65 +252,82 @@ function initHoodMap() {
   });
 }
 
-// ─── Get short abbreviation for label ──────────────────────────
-function getHoodAbbr(id) {
-  const abbrs = {
-    financial_district: 'FiDi', tribeca: 'TRI', soho: 'SoHo', noho: 'NoHo',
-    chinatown: 'CTN', little_italy: 'LI', lower_east_side: 'LES',
-    east_village: 'EV', west_village: 'WV', greenwich_village: 'GV',
-    chelsea: 'CHE', flatiron: 'FLT', gramercy: 'GRM', murray_hill: 'MH',
-    midtown: 'MID', hell_kitchen: 'HK', upper_west_side: 'UWS',
-    upper_east_side: 'UES', harlem: 'HAR', washington_heights: 'WH',
-    williamsburg: 'WBG', greenpoint: 'GP', dumbo: 'DUMBO',
-    brooklyn_heights: 'BKH', park_slope: 'PS', prospect_heights: 'PH',
-    crown_heights: 'CH', bed_stuy: 'BedSt', bushwick: 'BWK',
-    sunset_park: 'SP', bay_ridge: 'BR', cobble_hill: 'CobH',
-    boerum_hill: 'BOE', fort_greene: 'FG', red_hook: 'RH',
-    astoria: 'AST', long_island_city: 'LIC', jackson_heights: 'JH',
-    flushing: 'FLU', forest_hills: 'FH', sunnyside: 'SUN',
-    woodside: 'WDS', jamaica: 'JAM', ridgewood: 'RDG',
-    bayside: 'BAY', rockaway_beach: 'ROC', corona: 'COR',
-    mott_haven: 'MOT', south_bronx: 'SBX', fordham: 'FOR',
-    belmont: 'BEL', riverdale: 'RVD', pelham_bay: 'PB',
-    hunts_point: 'HP', city_island: 'CI',
-    st_george: 'SG', tottenville: 'TOT', historic_richmond_town: 'HRT',
-    snug_harbor: 'SH'
-  };
-  return abbrs[id] || id.substring(0, 3).toUpperCase();
+// ─── Get short abbreviation for NTA label ───────────────────────
+function getHoodAbbr(name) {
+  // Common abbreviations
+  const words = name.split(/[-\s(]+/);
+  if (words.length === 1) return name.length > 5 ? name.substring(0, 4) : name;
+  // Take first letter of each word (max 4)
+  return words.slice(0, 4).map(w => w[0]).join('').toUpperCase();
 }
 
-// ─── Refresh map colors based on visited/lived status ──────────
-function refreshMapColors() {
-  if (!hoodSvg) return;
+// ─── Animated zoom to a neighborhood feature ────────────────────
+function zoomToFeature(feature) {
+  if (!hoodSvg || !hoodZoom || !hoodPath) return;
 
-  hoodSvg.selectAll('.hood-path').each(function() {
+  const [[x0, y0], [x1, y1]] = hoodPath.bounds(feature);
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const x = (x0 + x1) / 2;
+  const y = (y0 + y1) / 2;
+  const scale = Math.max(1, Math.min(10, 0.9 / Math.max(dx / mapW, dy / mapH)));
+
+  hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
+    .call(hoodZoom.transform, d3.zoomIdentity
+      .translate(mapW / 2, mapH / 2)
+      .scale(scale)
+      .translate(-x, -y));
+}
+
+// ─── Reset zoom to full city view ───────────────────────────────
+function resetMapZoom() {
+  if (!hoodSvg || !hoodZoom) return;
+  hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
+    .call(hoodZoom.transform, d3.zoomIdentity);
+}
+
+function zoomMapIn() {
+  if (!hoodSvg || !hoodZoom) return;
+  hoodSvg.transition().duration(300)
+    .call(hoodZoom.scaleBy, 1.5);
+}
+
+function zoomMapOut() {
+  if (!hoodSvg || !hoodZoom) return;
+  hoodSvg.transition().duration(300)
+    .call(hoodZoom.scaleBy, 0.67);
+}
+
+// ─── Refresh map colors based on visited/lived status ───────────
+function refreshMapColors() {
+  if (!mapGroup) return;
+
+  mapGroup.selectAll('.nta-path').each(function(d) {
     const el = d3.select(this);
-    const ctyId = el.attr('data-id');
-    const boroughRaw = el.attr('data-borough');
-    const status = getNeighborhoodStatus(ctyId);
-    const color = getBoroughColor(boroughRaw);
+    const code = d.properties.ntaCode;
+    const status = getNeighborhoodStatus(code);
+    const fill = d.properties._fill;
 
     if (status === 'lived') {
-      el.style('fill', color)
-        .style('fill-opacity', 0.9)
+      el.style('fill', fill)
+        .style('fill-opacity', 0.95)
         .style('stroke', '#fff')
         .style('stroke-width', 1.2);
     } else if (status === 'visited') {
-      el.style('fill', color)
-        .style('fill-opacity', 0.5)
-        .style('stroke', 'rgba(255,255,255,0.3)')
-        .style('stroke-width', 0.8);
+      el.style('fill', fill)
+        .style('fill-opacity', 0.55)
+        .style('stroke', 'rgba(255,255,255,0.25)')
+        .style('stroke-width', 0.6);
     } else {
-      // Unvisited: subtle borough tint
-      el.style('fill', color)
-        .style('fill-opacity', 0.12)
-        .style('stroke', 'rgba(255,255,255,0.1)')
+      el.style('fill', fill)
+        .style('fill-opacity', 0.15)
+        .style('stroke', 'rgba(255,255,255,0.08)')
         .style('stroke-width', 0.5);
     }
   });
 
-  hoodSvg.selectAll('.hood-label')
-    .style('fill', 'rgba(255,255,255,0.5)')
+  mapGroup.selectAll('.hood-label')
+    .style('fill', 'rgba(255,255,255,0.45)')
     .style('font-family', 'Space Grotesk, sans-serif')
     .style('font-weight', '600')
     .style('text-anchor', 'middle')
@@ -227,13 +335,13 @@ function refreshMapColors() {
     .style('letter-spacing', '0.3px');
 }
 
-// ─── Tooltip ───────────────────────────────────────────────────
-function showHoodTooltip(event, ctyId) {
+// ─── Tooltip ────────────────────────────────────────────────────
+function showHoodTooltip(event, ntaCode) {
   const tooltip = document.getElementById('tooltip');
-  const hood = getNeighborhoodById(ctyId);
-  if (!hood) return;
+  const hood = getNeighborhoodById(ntaCode);
+  if (!hood || !tooltip) return;
 
-  const status = getNeighborhoodStatus(ctyId);
+  const status = getNeighborhoodStatus(ntaCode);
   const statusText = status === 'lived' ? ' · Lived' : status === 'visited' ? ' · Visited' : '';
 
   document.getElementById('t-name').textContent = hood.name;
@@ -245,14 +353,22 @@ function showHoodTooltip(event, ctyId) {
 }
 
 function hideHoodTooltip() {
-  document.getElementById('tooltip').style.display = 'none';
+  const tooltip = document.getElementById('tooltip');
+  if (tooltip) tooltip.style.display = 'none';
 }
 
-// ─── Render neighborhood cards grid ────────────────────────────
+// ─── Render neighborhood cards grid ─────────────────────────────
 function renderNeighborhoods(filter) {
   if (filter) currentFilter = filter;
 
-  const neighborhoods = filterNeighborhoodsByBorough(currentFilter);
+  let neighborhoods = filterNeighborhoodsByBorough(currentFilter);
+
+  // Apply search filter
+  if (currentSearch) {
+    const q = currentSearch.toLowerCase();
+    neighborhoods = neighborhoods.filter(h => h.name.toLowerCase().includes(q));
+  }
+
   const grid = document.getElementById('neighborhoods-grid');
   grid.innerHTML = '';
 
@@ -261,81 +377,93 @@ function renderNeighborhoods(filter) {
   sorted.forEach(hood => {
     const status = getNeighborhoodStatus(hood.id);
     const color = getBoroughColor(hood.borough);
+    const spots = getTotalSpotsCount(hood.id);
     const visited = getVisitedSpotsCount(hood.id);
-    const total = getTotalSpotsCount(hood.id);
 
     const card = document.createElement('div');
     card.className = 'hood-btn';
     if (status === 'lived') card.classList.add('lived');
     else if (status === 'visited') card.classList.add('visited');
 
+    const abbr = getHoodAbbr(hood.name);
     card.innerHTML = `
       <div class="hb-accent" style="background:${color}"></div>
-      <div class="hb-abbr" style="color:${status ? color : 'rgba(255,255,255,0.4)'}">${getHoodAbbr(hood.id)}</div>
+      <div class="hb-abbr" style="color:${status ? color : 'rgba(255,255,255,0.4)'}">${abbr}</div>
       <div class="hb-name">${escHtml(hood.name)}</div>
-      <div class="hb-meta">${visited}/${total} spots</div>
+      ${spots > 0 ? `<div class="hb-meta">${visited}/${spots}</div>` : ''}
     `;
 
-    card.onclick = () => openHoodDetail(hood.id);
+    card.onclick = () => {
+      openHoodDetail(hood.id);
+      // Find the GeoJSON feature and zoom to it
+      if (hoodGeoData) {
+        const feat = hoodGeoData.features.find(f => f.properties.ntaCode === hood.id);
+        if (feat) zoomToFeature(feat);
+      }
+    };
     grid.appendChild(card);
   });
 }
 
-// ─── Filter by borough ─────────────────────────────────────────
+// ─── Search filter ──────────────────────────────────────────────
+function filterHoodSearch(value) {
+  currentSearch = value;
+  renderNeighborhoods();
+}
+
+// ─── Filter by borough ──────────────────────────────────────────
 function filterBorough(borough, btn) {
   document.querySelectorAll('.borough-filter .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderNeighborhoods(borough);
 }
 
-// ─── Open neighborhood detail popup ────────────────────────────
-function openHoodDetail(hoodId) {
-  currentHoodId = hoodId;
-  const hood = getNeighborhoodById(hoodId);
+// ─── Open neighborhood detail popup ─────────────────────────────
+function openHoodDetail(ntaCode) {
+  currentHoodId = ntaCode;
+  const hood = getNeighborhoodById(ntaCode);
   if (!hood) return;
 
   const popup = document.getElementById('hood-detail');
   const color = getBoroughColor(hood.borough);
-  const status = getNeighborhoodStatus(hoodId);
+  const status = getNeighborhoodStatus(ntaCode);
 
   document.getElementById('hd-accent').style.background = color;
   document.getElementById('hd-name').textContent = hood.name;
   document.getElementById('hd-borough').textContent = getBoroughName(hood.borough);
   document.getElementById('hd-borough').style.color = color;
-  document.getElementById('hd-desc').textContent = hood.description || '';
+
+  // Show parent group context if available
+  const descEl = document.getElementById('hd-desc');
+  const parentId = getParentCTY(ntaCode);
+  if (parentId !== ntaCode) {
+    descEl.textContent = '';
+  } else {
+    descEl.textContent = '';
+  }
 
   const tagsDiv = document.getElementById('hd-tags');
   tagsDiv.innerHTML = '';
-  if (Array.isArray(hood.tags)) {
-    hood.tags.forEach(tag => {
-      const tagSpan = document.createElement('span');
-      tagSpan.className = 'hd-tag';
-      tagSpan.style.borderColor = color + '66';
-      tagSpan.style.color = color;
-      tagSpan.textContent = tag;
-      tagsDiv.appendChild(tagSpan);
-    });
-  }
 
-  updateStatusButtons(hoodId, status, color);
+  updateStatusButtons(ntaCode, status, color);
 
-  const visited = getVisitedSpotsCount(hoodId);
-  const total = getTotalSpotsCount(hoodId);
-  const pct = total > 0 ? (visited / total) * 100 : 0;
-  document.getElementById('hd-progress-text').textContent = visited + '/' + total + ' spots collected';
+  const visitedCount = getVisitedSpotsCount(ntaCode);
+  const total = getTotalSpotsCount(ntaCode);
+  const pct = total > 0 ? (visitedCount / total) * 100 : 0;
+  document.getElementById('hd-progress-text').textContent = visitedCount + '/' + total + ' spots collected';
   const progressBar = document.getElementById('hd-progress-bar');
   progressBar.style.width = pct + '%';
   progressBar.style.background = color;
 
-  buildMiniMap(hoodId, color);
-  renderSpotsList(hoodId);
+  buildMiniMap(ntaCode, color);
+  renderSpotsList(ntaCode);
 
   popup.classList.add('active');
   document.getElementById('hood-detail-overlay').classList.add('active');
 }
 
-// ─── Update visited/lived status buttons ───────────────────────
-function updateStatusButtons(hoodId, status, color) {
+// ─── Update visited/lived status buttons ────────────────────────
+function updateStatusButtons(ntaCode, status, color) {
   const visitedBtn = document.getElementById('hd-visited-btn');
   const livedBtn = document.getElementById('hd-lived-btn');
 
@@ -396,23 +524,22 @@ function toggleHoodLived() {
   showToast(newStatus ? 'Marked as lived' : 'Removed lived status');
 }
 
-// ─── Build mini SVG map of neighborhood with attractions ───────
-function buildMiniMap(hoodId, color) {
+// ─── Build mini SVG map of neighborhood ─────────────────────────
+function buildMiniMap(ntaCode, color) {
   const container = document.getElementById('hd-minimap');
   container.innerHTML = '';
 
-  const hood = getNeighborhoodById(hoodId);
-  if (!hood) return;
+  const hood = getNeighborhoodById(ntaCode);
+  if (!hood || !hoodGeoData) return;
 
-  const restaurants = getNeighborhoodRestaurants(hoodId);
-  const attractions = getNeighborhoodAttractions(hoodId);
+  const restaurants = getNeighborhoodRestaurants(ntaCode);
+  const attractions = getNeighborhoodAttractions(ntaCode);
   const allSpots = [
     ...restaurants.map(r => ({ ...r, spotType: 'restaurant' })),
     ...attractions.map(a => ({ ...a, spotType: 'attraction' }))
   ].filter(s => s.lat && s.lng);
 
-  const w = 280;
-  const h = 200;
+  const w = 280, h = 200;
 
   const svg = d3.select(container)
     .append('svg')
@@ -421,63 +548,55 @@ function buildMiniMap(hoodId, color) {
     .style('border-radius', '8px')
     .style('background', 'rgba(255,255,255,0.03)');
 
-  // Find NTA features for this neighborhood
-  if (hoodGeoData) {
-    const ntaNames = CTY_TO_NTAS[hoodId] || [];
-    const features = hoodGeoData.features.filter(f => ntaNames.includes(f.properties.name));
+  // Find the feature for this NTA
+  const feature = hoodGeoData.features.find(f => f.properties.ntaCode === ntaCode);
+  if (feature) {
+    const fc = { type: 'FeatureCollection', features: [feature] };
+    const miniProj = d3.geoMercator().fitSize([w - 20, h - 20], fc);
+    const miniPath = d3.geoPath().projection(miniProj);
 
-    if (features.length > 0) {
-      // Create a merged feature collection for fitting
-      const fc = { type: 'FeatureCollection', features: features };
-      const miniProjection = d3.geoMercator().fitSize([w - 20, h - 20], fc);
-      const miniPath = d3.geoPath().projection(miniProjection);
+    const g = svg.append('g').attr('transform', 'translate(10,10)');
 
-      const g = svg.append('g').attr('transform', 'translate(10,10)');
+    g.append('path')
+      .datum(feature)
+      .attr('d', miniPath)
+      .style('fill', color + '20')
+      .style('stroke', color)
+      .style('stroke-width', 1.5)
+      .style('stroke-opacity', 0.6);
 
-      // Draw neighborhood outline(s)
-      features.forEach(f => {
-        g.append('path')
-          .datum(f)
-          .attr('d', miniPath)
-          .style('fill', color + '20')
-          .style('stroke', color)
-          .style('stroke-width', 1.5)
-          .style('stroke-opacity', 0.6);
-      });
+    // Plot spots
+    allSpots.forEach((spot, i) => {
+      const projected = miniProj([spot.lng, spot.lat]);
+      if (!projected) return;
 
-      // Plot spots
-      allSpots.forEach((spot, i) => {
-        const projected = miniProjection([spot.lng, spot.lat]);
-        if (!projected) return;
+      const isVisited = spot.spotType === 'restaurant'
+        ? isRestaurantVisited(spot.id)
+        : isAttractionVisited(spot.id);
 
-        const isVisited = spot.spotType === 'restaurant'
-          ? isRestaurantVisited(spot.id)
-          : isAttractionVisited(spot.id);
+      g.append('circle')
+        .attr('cx', projected[0])
+        .attr('cy', projected[1])
+        .attr('r', 4)
+        .style('fill', isVisited ? color : 'rgba(255,255,255,0.3)')
+        .style('stroke', isVisited ? '#fff' : 'rgba(255,255,255,0.2)')
+        .style('stroke-width', 1);
 
-        g.append('circle')
-          .attr('cx', projected[0])
-          .attr('cy', projected[1])
-          .attr('r', 4)
-          .style('fill', isVisited ? color : 'rgba(255,255,255,0.3)')
-          .style('stroke', isVisited ? '#fff' : 'rgba(255,255,255,0.2)')
-          .style('stroke-width', 1);
-
-        if (i < 5) {
-          g.append('text')
-            .attr('x', projected[0] + 6)
-            .attr('y', projected[1] + 3)
-            .text(spot.name.length > 14 ? spot.name.substring(0, 13) + '…' : spot.name)
-            .style('font-size', '7px')
-            .style('fill', 'rgba(255,255,255,0.5)')
-            .style('font-family', 'Space Grotesk, sans-serif')
-            .style('pointer-events', 'none');
-        }
-      });
-      return;
-    }
+      if (i < 5) {
+        g.append('text')
+          .attr('x', projected[0] + 6)
+          .attr('y', projected[1] + 3)
+          .text(spot.name.length > 14 ? spot.name.substring(0, 13) + '…' : spot.name)
+          .style('font-size', '7px')
+          .style('fill', 'rgba(255,255,255,0.5)')
+          .style('font-family', 'Space Grotesk, sans-serif')
+          .style('pointer-events', 'none');
+      }
+    });
+    return;
   }
 
-  // Fallback: no NTA match, show spot dots
+  // Fallback: just show spot dots if no feature found
   if (allSpots.length > 0) {
     const lats = allSpots.map(s => s.lat);
     const lngs = allSpots.map(s => s.lng);
@@ -502,15 +621,15 @@ function buildMiniMap(hoodId, color) {
   }
 }
 
-// ─── Render spots list in detail popup ─────────────────────────
-function renderSpotsList(hoodId) {
-  const restaurants = getNeighborhoodRestaurants(hoodId);
-  const attractions = getNeighborhoodAttractions(hoodId);
+// ─── Render spots list in detail popup ──────────────────────────
+function renderSpotsList(ntaCode) {
+  const restaurants = getNeighborhoodRestaurants(ntaCode);
+  const attractions = getNeighborhoodAttractions(ntaCode);
 
   const restDiv = document.getElementById('hd-restaurants');
   restDiv.innerHTML = '';
   if (restaurants.length === 0) {
-    restDiv.innerHTML = '<div class="hd-empty">No restaurants in this neighborhood</div>';
+    restDiv.innerHTML = '<div class="hd-empty">No restaurants tracked here yet</div>';
   } else {
     restaurants.forEach(rest => {
       const visited = isRestaurantVisited(rest.id);
@@ -530,7 +649,7 @@ function renderSpotsList(hoodId) {
   const attrDiv = document.getElementById('hd-attractions');
   attrDiv.innerHTML = '';
   if (attractions.length === 0) {
-    attrDiv.innerHTML = '<div class="hd-empty">No attractions in this neighborhood</div>';
+    attrDiv.innerHTML = '<div class="hd-empty">No attractions tracked here yet</div>';
   } else {
     attractions.forEach(attr => {
       const visited = isAttractionVisited(attr.id);
@@ -548,7 +667,7 @@ function renderSpotsList(hoodId) {
   }
 }
 
-// ─── Close detail popup ────────────────────────────────────────
+// ─── Close detail popup ─────────────────────────────────────────
 function closeHoodDetail() {
   document.getElementById('hood-detail').classList.remove('active');
   document.getElementById('hood-detail-overlay').classList.remove('active');
@@ -556,7 +675,7 @@ function closeHoodDetail() {
 }
 function closeHoodDrawer() { closeHoodDetail(); }
 
-// ─── Toggle spot visited ───────────────────────────────────────
+// ─── Toggle spot visited ────────────────────────────────────────
 function toggleSpot(type, id, visited) {
   if (type === 'restaurant') syncVisitedRestaurant(id, visited);
   else if (type === 'attraction') syncVisitedAttraction(id, visited);
@@ -575,16 +694,10 @@ function toggleSpot(type, id, visited) {
     document.getElementById('hd-progress-bar').style.width = pct + '%';
   }
 
-  if (document.getElementById('page-explorer') && document.getElementById('page-explorer').classList.contains('active')) {
-    if (typeof updateExplorerMarkers === 'function') updateExplorerMarkers();
-  }
-  if (document.getElementById('page-stamps') && document.getElementById('page-stamps').classList.contains('active')) {
-    if (typeof renderStamps === 'function') renderStamps();
-  }
   renderNeighborhoods();
 }
 
-// ─── Close on overlay click / escape ───────────────────────────
+// ─── Close on overlay click ─────────────────────────────────────
 document.addEventListener('click', function(e) {
   if (e.target.id === 'hood-detail-overlay') closeHoodDetail();
 });

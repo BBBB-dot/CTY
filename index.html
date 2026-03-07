@@ -71,7 +71,7 @@
     </div>
     <div class="stats-row">
       <div class="stat-card">
-        <div class="sc-val"><span id="hoods-count">0</span>/<span id="hoods-total">59</span></div>
+        <div class="sc-val"><span id="hoods-count">0</span>/<span id="hoods-total">197</span></div>
         <div class="sc-label">Neighborhoods Explored</div>
         <div class="bar-track"><div class="bar-fill" id="hoods-bar"></div></div>
       </div>
@@ -99,9 +99,18 @@
         <span class="legend-item"><span class="legend-dot" style="background:#FF8C42;border-color:#FF8C42"></span>SI</span>
       </div>
       <div id="hood-map-container"></div>
+      <div class="map-zoom-controls">
+        <button class="zoom-btn" onclick="zoomMapIn()" title="Zoom in">+</button>
+        <button class="zoom-btn" onclick="zoomMapOut()" title="Zoom out">−</button>
+        <button class="zoom-btn reset" onclick="resetMapZoom()" title="Reset view">⟲</button>
+      </div>
     </div>
 
-    <!-- Borough Filter + Cards Grid -->
+    <!-- Search + Borough Filter + Cards Grid -->
+    <div class="hood-search-wrap" style="position:relative">
+      <span class="hood-search-icon">⌕</span>
+      <input type="text" class="hood-search" id="hood-search" placeholder="Search neighborhoods..." oninput="filterHoodSearch(this.value)">
+    </div>
     <div class="borough-filter">
       <button class="filter-btn active" data-borough="all" onclick="filterBorough('all',this)">All</button>
       <button class="filter-btn manhattan" data-borough="manhattan" onclick="filterBorough('manhattan',this)">Manhattan</button>
