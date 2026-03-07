@@ -376,10 +376,17 @@ function initHoodMap() {
         });
       }
 
-      const projectedRing = rings.length > 0
+      let projectedRing = rings.length > 0
         ? rings[0].map(coord => hoodProjection(coord)).filter(p => p && !isNaN(p[0]))
         : [];
       if (projectedRing.length < 3) return;
+
+      // Ensure clockwise winding for Sutherland-Hodgman clipping
+      let ringArea = 0;
+      for (let i = 0; i < projectedRing.length - 1; i++) {
+        ringArea += (projectedRing[i+1][0] - projectedRing[i][0]) * (projectedRing[i+1][1] + projectedRing[i][1]);
+      }
+      if (ringArea < 0) projectedRing.reverse();
 
       // Project sub-neighborhood center points
       const subPoints = subs.map(sub => {
