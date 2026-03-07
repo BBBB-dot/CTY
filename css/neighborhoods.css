@@ -1,39 +1,36 @@
 /* ============================================
    CTY - Neighborhoods Page Stylesheet
-   D3 Map + Cards Grid + Detail Popup
+   Leaflet Tile Map + Cards Grid + Detail Popup
    ============================================ */
 
 /* ============================================
-   D3 MAP CONTAINER
+   MAP CONTAINER (rotated for vertical Manhattan)
    ============================================ */
 
 .hood-map-wrap {
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
-  padding: 16px;
+  padding: 0;
   margin-bottom: 32px;
   position: relative;
+  overflow: hidden;
+  /* Height matches the visible area — the inner container expands
+     slightly to fill corners exposed by the CSS rotation */
+  min-height: 400px;
+  height: 600px;
 }
 
 #hood-map-container {
-  width: 100%;
-  min-height: 400px;
-  height: 600px;
-  border-radius: 12px;
+  /* JS will set width/height/transform for rotation */
+  border-radius: 0;
   overflow: hidden;
   background: #0A0A0A;
 }
 
-/* Leaflet container inside the map wrapper */
-#hood-map-container .leaflet-container {
-  background: #0A0A0A;
-  font-family: 'Space Grotesk', sans-serif;
-}
-
-/* Make Leaflet tile pane slightly transparent so neighborhood colors pop */
+/* Leaflet tile pane — subtle so neighborhood fills pop */
 #hood-map-container .leaflet-tile-pane {
-  opacity: 0.85;
+  opacity: 0.75;
 }
 
 /* Hide Leaflet attribution for clean look */
@@ -41,8 +38,13 @@
   display: none;
 }
 
+/* Smooth polygon transitions via SVG CSS */
+.leaflet-overlay-pane svg path {
+  transition: fill-opacity 0.2s ease, stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
 /* ============================================
-   ZOOM CONTROLS
+   ZOOM CONTROLS (counter-rotated to stay upright)
    ============================================ */
 
 .map-zoom-controls {
@@ -53,6 +55,8 @@
   flex-direction: column;
   gap: 4px;
   z-index: 10;
+  /* Counter-rotate so buttons stay upright */
+  transform: rotate(-29deg);
 }
 
 .zoom-btn {
@@ -552,7 +556,7 @@
     max-height: 90vh;
   }
 
-  #hood-map-container {
+  .hood-map-wrap {
     min-height: 300px;
     height: 450px;
   }

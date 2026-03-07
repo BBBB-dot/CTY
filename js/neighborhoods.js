@@ -13,7 +13,9 @@ let hoodPolygonLayers = {};   // subId/ntaCode → L.polygon
 let hoodBgLayers = [];        // background NTA shapes
 let centralParkLayer = null;
 
-// ─── Borough color variation ────────────────────────────────────
+// ─── Borough color fill ─────────────────────────────────────────
+// Subtle lightness variation within each borough — keeps neighborhoods
+// visually distinct without the chaotic hue shifts.
 function getNTAFill(ntaCode, borough, index, total) {
   const base = getBoroughColor(borough);
   const r = parseInt(base.slice(1, 3), 16) / 255;
@@ -33,12 +35,11 @@ function getNTAFill(ntaCode, borough, index, total) {
     }
   }
 
+  // Very subtle variation: only lightness shifts ±6%, no hue shift
   const t = total > 1 ? index / (total - 1) : 0.5;
-  const hueShift = (t - 0.5) * 0.14;
-  const lightShift = (t - 0.5) * 0.15;
+  const lightShift = (t - 0.5) * 0.06;
 
-  h = ((h + hueShift) % 1 + 1) % 1;
-  l = Math.max(0.15, Math.min(0.65, l + lightShift));
+  l = Math.max(0.25, Math.min(0.55, l + lightShift));
 
   return hslToHex(h, s, l);
 }
@@ -120,6 +121,11 @@ const SUB_TO_LOCALITY = {
   'MN-SpanishHarlem': 'East Harlem',
 };
 
+// ─── Map rotation constant (degrees) ────────────────────────────
+// Rotates so Manhattan's grid runs vertically, matching the classic
+// NYC map orientation (~29° east of true north).
+const MAP_ROTATION_DEG = 29;
+
 // ─── Load GeoJSON + render Leaflet map ──────────────────────────
 function initHoodMap() {
   if (hoodMapReady) return;
@@ -133,16 +139,26 @@ function initHoodMap() {
     container.style.height = Math.round(w * 0.85) + 'px';
   }
 
+  // Apply CSS rotation to the map container so Manhattan is vertical.
+  // We use "dark_nolabels" tiles so rotated text isn't an issue.
+  container.style.transform = `rotate(${MAP_ROTATION_DEG}deg)`;
+  container.style.transformOrigin = 'center center';
+  // Expand slightly to cover corners exposed by rotation
+  container.style.width = '115%';
+  container.style.marginLeft = '-7.5%';
+  container.style.height = '115%';
+  container.style.marginTop = '-7.5%';
+
   // Create Leaflet map
   hoodMap = L.map('hood-map-container', {
     zoomControl: false,
     attributionControl: false,
     minZoom: 10,
     maxZoom: 18,
-  }).setView([40.748, -73.985], 12);
+  }).setView([40.758, -73.985], 12);
 
-  // CartoDB Dark Matter tiles — real streets visible
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // CartoDB Dark Matter (no labels) — streets visible, no rotated text
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     subdomains: 'abcd',
   }).addTo(hoodMap);
@@ -190,7 +206,8 @@ function renderLeafletMap(geo) {
   });
   const boroughIdx = {};
 
-  // ─── 1. Background NTA shapes (non-Manhattan or NTAs without subs) ───
+  // ─── 1. Background NTA shapes ───
+  // NTAs with subs: faint backdrop; NTAs without subs: interactive polygons
   ntaPaths.forEach(f => {
     const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
     if (!boroughIdx[boro]) boroughIdx[boro] = 0;
@@ -205,18 +222,24 @@ function renderLeafletMap(geo) {
     if (!latlngs) return;
 
     const layer = L.polygon(latlngs, {
-      color: hasSubs ? 'transparent' : 'rgba(255,255,255,0.08)',
+      color: hasSubs ? 'transparent' : 'rgba(255,255,255,0.06)',
       weight: hasSubs ? 0 : 0.5,
       fillColor: fill,
-      fillOpacity: hasSubs ? 0.06 : 0.15,
+      fillOpacity: hasSubs ? 0.04 : 0.20,
       interactive: !hasSubs,
     }).addTo(hoodMap);
 
     if (!hasSubs) {
       const code = f.properties.ntaCode;
       layer.on('click', function() { openHoodDetail(code); });
-      layer.on('mouseover', function(e) { showHoodTooltipLeaflet(e, code); });
-      layer.on('mouseout', hideHoodTooltip);
+      layer.on('mouseover', function(e) {
+        showHoodTooltipLeaflet(e, code);
+        layer.setStyle({ fillOpacity: 0.35, color: 'rgba(255,255,255,0.3)', weight: 1 });
+      });
+      layer.on('mouseout', function() {
+        hideHoodTooltip();
+        refreshSingleLayer(code);
+      });
       hoodPolygonLayers[code] = layer;
     }
     hoodBgLayers.push({ layer, feature: f, hasSubs });
@@ -325,7 +348,8 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
   subEntries.forEach(entry => {
     // Convert [lat, lng] polygon to Leaflet-compatible format
     const latlngs = entry.polygon.map(p => [p[0], p[1]]);
-    const subFill = getNTAFill(entry.subId, entry.borough, entry.idx, entry.totalInNTA);
+    // Use borough base color directly — subtle variation comes from getNTAFill
+    const subFill = getBoroughColor(entry.borough);
 
     // Use pane with z-index based on priority for stacking order
     const paneName = 'sub-' + entry.priority;
@@ -336,10 +360,10 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
 
     const layer = L.polygon(latlngs, {
       pane: paneName,
-      color: 'transparent',
-      weight: 0,
+      color: 'rgba(255,255,255,0.05)',
+      weight: 0.5,
       fillColor: subFill,
-      fillOpacity: 0.45,
+      fillOpacity: 0.18,
       interactive: true,
     }).addTo(hoodMap);
 
@@ -350,31 +374,23 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
 
     layer.on('click', function() {
       openHoodDetail(entry.subId);
-      // Zoom to the neighborhood
       hoodMap.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 15 });
     });
 
     layer.on('mouseover', function(e) {
       showHoodTooltipLeaflet(e, entry.subId);
-      // Highlight on hover
+      // Consistent, subtle highlight: slight brightness + thin border
       layer.setStyle({
-        fillOpacity: 0.65,
-        color: 'rgba(255,255,255,0.4)',
-        weight: 1.5,
+        fillOpacity: 0.35,
+        color: 'rgba(255,255,255,0.25)',
+        weight: 1,
       });
     });
 
     layer.on('mouseout', function() {
       hideHoodTooltip();
-      // Restore style — will be set by refreshMapColors
-      const status = getNeighborhoodStatus(entry.subId);
-      if (status === 'lived') {
-        layer.setStyle({ fillOpacity: 0.75, color: 'transparent', weight: 0 });
-      } else if (status === 'visited') {
-        layer.setStyle({ fillOpacity: 0.55, color: 'transparent', weight: 0 });
-      } else {
-        layer.setStyle({ fillOpacity: 0.45, color: 'transparent', weight: 0 });
-      }
+      // Restore to current status style
+      refreshSingleLayer(entry.subId);
     });
 
     hoodPolygonLayers[entry.subId] = layer;
@@ -435,6 +451,16 @@ function hideHoodTooltip() {
   if (tooltip) tooltip.style.display = 'none';
 }
 
+// ─── Style constants ────────────────────────────────────────────
+// Consistent opacity levels across all neighborhoods
+const STYLE = {
+  unvisited:  { fillOpacity: 0.18, color: 'rgba(255,255,255,0.05)', weight: 0.5 },
+  overlapped: { fillOpacity: 0.10, color: 'rgba(255,255,255,0.03)', weight: 0.3 },
+  visited:    { fillOpacity: 0.40, color: 'rgba(255,255,255,0.15)', weight: 0.8 },
+  lived:      { fillOpacity: 0.60, color: 'rgba(255,255,255,0.25)', weight: 1.0 },
+  hover:      { fillOpacity: 0.35, color: 'rgba(255,255,255,0.25)', weight: 1.0 },
+};
+
 // ─── Refresh map colors based on visited/lived status ───────────
 function refreshMapColors() {
   if (!hoodMap) return;
@@ -447,20 +473,11 @@ function refreshMapColors() {
     const status = getNeighborhoodStatus(code);
 
     if (status === 'lived') {
-      entry.layer.setStyle({
-        fillColor: fill, fillOpacity: 0.85,
-        color: '#fff', weight: 1.2,
-      });
+      entry.layer.setStyle({ fillColor: fill, ...STYLE.lived });
     } else if (status === 'visited') {
-      entry.layer.setStyle({
-        fillColor: fill, fillOpacity: 0.5,
-        color: 'rgba(255,255,255,0.25)', weight: 0.6,
-      });
+      entry.layer.setStyle({ fillColor: fill, ...STYLE.visited });
     } else {
-      entry.layer.setStyle({
-        fillColor: fill, fillOpacity: 0.15,
-        color: 'rgba(255,255,255,0.08)', weight: 0.5,
-      });
+      entry.layer.setStyle({ fillColor: fill, ...STYLE.unvisited });
     }
   });
 
@@ -488,15 +505,51 @@ function refreshMapColors() {
     );
 
     if (status === 'lived') {
-      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.75, color: 'transparent', weight: 0 });
+      entry.layer.setStyle({ fillColor: fill, ...STYLE.lived });
     } else if (status === 'visited') {
-      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.55, color: 'transparent', weight: 0 });
+      entry.layer.setStyle({ fillColor: fill, ...STYLE.visited });
     } else if (isOverlapped) {
-      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.30, color: 'transparent', weight: 0 });
+      entry.layer.setStyle({ fillColor: fill, ...STYLE.overlapped });
     } else {
-      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.45, color: 'transparent', weight: 0 });
+      entry.layer.setStyle({ fillColor: fill, ...STYLE.unvisited });
     }
   });
+}
+
+// ─── Refresh a single layer (used on mouseout) ─────────────────
+function refreshSingleLayer(subId) {
+  const layer = hoodPolygonLayers[subId];
+  if (!layer) return;
+  const fill = layer._subFill || (function() {
+    // For NTA layers, find fill from bgLayers
+    const bg = hoodBgLayers.find(e => e.feature.properties.ntaCode === subId);
+    return bg ? bg.feature.properties._fill : '#fff';
+  })();
+  const status = getNeighborhoodStatus(subId);
+  const priority = layer._priority || 0;
+
+  if (status === 'lived') {
+    layer.setStyle({ fillColor: fill, ...STYLE.lived });
+  } else if (status === 'visited') {
+    layer.setStyle({ fillColor: fill, ...STYLE.visited });
+  } else {
+    // Check for overlap
+    const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
+    const bounds = layer.getBounds();
+    let isOverlapped = false;
+    if (hasPriority) {
+      Object.entries(hoodPolygonLayers).some(([otherId, other]) => {
+        if (otherId === subId || !other._subFill) return false;
+        const otherPri = other._priority || 0;
+        if (otherPri > priority && bounds.intersects(other.getBounds())) {
+          isOverlapped = true;
+          return true;
+        }
+        return false;
+      });
+    }
+    layer.setStyle({ fillColor: fill, ...(isOverlapped ? STYLE.overlapped : STYLE.unvisited) });
+  }
 }
 
 // ─── Zoom controls ──────────────────────────────────────────────
@@ -512,7 +565,7 @@ function zoomMapOut() {
 
 function resetMapZoom() {
   if (!hoodMap) return;
-  hoodMap.setView([40.748, -73.985], 12, { animate: true });
+  hoodMap.setView([40.758, -73.985], 12, { animate: true });
 }
 
 // ─── Zoom to a specific neighborhood ────────────────────────────
