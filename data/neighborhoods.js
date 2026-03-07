@@ -1,7 +1,7 @@
 // NYC Neighborhoods — NTA 2020 + Manhattan micro-neighborhoods
 // NTA data from NYC Open Data ArcGIS boundaries
 // Manhattan sub-neighborhoods split from DCP "City of Neighborhoods" map
-// Total: 233 neighborhoods across 5 boroughs
+// Total: 225 neighborhoods across 5 boroughs
 
 const NEIGHBORHOODS = [
   // ─── Bronx (37) ───
@@ -107,7 +107,7 @@ const NEIGHBORHOODS = [
   // --- from MN0102: Tribeca-Civic Center ---
   { id: 'MN-Tribeca', name: 'TriBeCa', borough: 'manhattan', center: [40.7163, -74.0086], parent: 'MN0102' },
   { id: 'MN-CivCtr', name: 'Civic Center', borough: 'manhattan', center: [40.7134, -74.0014], parent: 'MN0102' },
-  { id: 'MN-RadioRow', name: 'Radio Row', borough: 'manhattan', center: [40.7118, -74.0130], parent: 'MN0102' },
+
 
   // --- from MN0201: SoHo-Little Italy-Hudson Square ---
   { id: 'MN-SoHo', name: 'SoHo', borough: 'manhattan', center: [40.7233, -74.0030], parent: 'MN0201' },
@@ -126,17 +126,17 @@ const NEIGHBORHOODS = [
   // --- from MN0301: Chinatown-Two Bridges ---
   { id: 'MN-Chinatown', name: 'Chinatown', borough: 'manhattan', center: [40.7158, -73.9970], parent: 'MN0301' },
   { id: 'MN-TwoBridges', name: 'Two Bridges', borough: 'manhattan', center: [40.7108, -73.9890], parent: 'MN0301' },
-  { id: 'MN-FivePts', name: 'Five Points', borough: 'manhattan', center: [40.7140, -73.9990], parent: 'MN0301' },
+
 
   // --- from MN0302: Lower East Side ---
   { id: 'MN-LES', name: 'Lower East Side', borough: 'manhattan', center: [40.7150, -73.9839], parent: 'MN0302' },
   { id: 'MN-Bowery', name: 'Bowery', borough: 'manhattan', center: [40.7200, -73.9935], parent: 'MN0302' },
-  { id: 'MN-CoopVlg', name: 'Cooperative Village', borough: 'manhattan', center: [40.7148, -73.9800], parent: 'MN0302' },
+
 
   // --- from MN0303: East Village ---
   { id: 'MN-EastVlg', name: 'East Village', borough: 'manhattan', center: [40.7265, -73.9815], parent: 'MN0303' },
   { id: 'MN-AlphaCity', name: 'Alphabet City', borough: 'manhattan', center: [40.7242, -73.9770], parent: 'MN0303' },
-  { id: 'MN-LilGermany', name: 'Little Germany', borough: 'manhattan', center: [40.7285, -73.9850], parent: 'MN0303' },
+
 
   // --- from MN0401: Chelsea-Hudson Yards ---
   { id: 'MN-Chelsea', name: 'Chelsea', borough: 'manhattan', center: [40.7462, -74.0000], parent: 'MN0401' },
@@ -150,7 +150,7 @@ const NEIGHBORHOODS = [
   { id: 'MN-Flatiron', name: 'Flatiron District', borough: 'manhattan', center: [40.7401, -73.9897], parent: 'MN0501' },
   { id: 'MN-UnionSq', name: 'Union Square', borough: 'manhattan', center: [40.7359, -73.9903], parent: 'MN0501' },
   { id: 'MN-NoMad', name: 'NoMad', borough: 'manhattan', center: [40.7447, -73.9880], parent: 'MN0501' },
-  { id: 'MN-Tenderloin', name: 'Tenderloin', borough: 'manhattan', center: [40.7470, -73.9910], parent: 'MN0501' },
+
   { id: 'MN-Koreatown', name: 'Koreatown', borough: 'manhattan', center: [40.7478, -73.9867], parent: 'MN0501' },
   { id: 'MN-HeraldSq', name: 'Herald Square', borough: 'manhattan', center: [40.7499, -73.9879], parent: 'MN0501' },
 
@@ -180,7 +180,7 @@ const NEIGHBORHOODS = [
   // --- from MN0701: Upper West Side-Lincoln Square ---
   { id: 'MN-LincolnSq', name: 'Lincoln Square', borough: 'manhattan', center: [40.7742, -73.9835], parent: 'MN0701' },
   { id: 'MN-ColumbusCir', name: 'Columbus Circle', borough: 'manhattan', center: [40.7680, -73.9820], parent: 'MN0701' },
-  { id: 'MN-Ansonia', name: 'Ansonia', borough: 'manhattan', center: [40.7810, -73.9800], parent: 'MN0701' },
+
 
   // --- from MN0702: Upper West Side (Central) ---
   { id: 'MN-UWS', name: 'Upper West Side', borough: 'manhattan', center: [40.7870, -73.9750], parent: 'MN0702' },
@@ -210,8 +210,6 @@ const NEIGHBORHOODS = [
 
   // --- from MN1001: Harlem (South) ---
   { id: 'MN-Harlem', name: 'Harlem', borough: 'manhattan', center: [40.8095, -73.9460], parent: 'MN1001' },
-  { id: 'MN-StriversRow', name: 'Strivers\' Row', borough: 'manhattan', center: [40.8140, -73.9440], parent: 'MN1001' },
-  { id: 'MN-AstorRow', name: 'Astor Row', borough: 'manhattan', center: [40.8080, -73.9440], parent: 'MN1001' },
 
   // --- from MN1002: Harlem (North) ---
   { id: 'MN1002', name: 'Harlem (North)', borough: 'manhattan', center: [40.8273, -73.9368] },
