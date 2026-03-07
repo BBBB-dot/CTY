@@ -215,6 +215,36 @@ let drawPoints = [];
 let drawMarkers = [];
 let drawPolyline = null;
 
+// ─── Area computation (shoelace formula on lat/lng — fine for relative comparison) ───
+function polyArea(latlngs) {
+  let area = 0;
+  const n = latlngs.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += latlngs[i].lng * latlngs[j].lat;
+    area -= latlngs[j].lng * latlngs[i].lat;
+  }
+  return Math.abs(area / 2);
+}
+
+// ─── Reorder all polygons so smaller ones render on top ───
+function reorderBySize() {
+  // Collect all polygon entries with their areas
+  const entries = Object.entries(polygons).map(([id, poly]) => {
+    const latlngs = poly.getLatLngs()[0];
+    return { id, poly, area: polyArea(latlngs) };
+  });
+  // Sort descending by area (largest first = added first = bottom layer)
+  entries.sort((a, b) => b.area - a.area);
+  // Remove all from map, re-add in order
+  entries.forEach(e => e.poly.remove());
+  entries.forEach(e => e.poly.addTo(map));
+  // If a polygon is currently selected, make sure it's on top
+  if (selectedId && polygons[selectedId]) {
+    polygons[selectedId].bringToFront();
+  }
+}
+
 // ─── Colors per parent NTA ───
 const NTA_COLORS = {};
 const palette = [
@@ -303,6 +333,7 @@ function selectHood(id) {
   // Highlight
   if (polygons[id]) {
     polygons[id].setStyle({ color: '#FFD700', weight: 3, fillOpacity: 0.35 });
+    polygons[id].bringToFront();
     enableEditing(id);
     map.fitBounds(polygons[id].getBounds(), { padding: [60, 60], maxZoom: 16 });
   } else {
@@ -373,6 +404,7 @@ function stopDragVertex() {
   map.off('mousemove', onDragVertex);
   map.off('mouseup', stopDragVertex);
   draggingMarker = null;
+  reorderBySize();
   updateInfoPanel();
 }
 
@@ -451,6 +483,7 @@ function finishDraw(e) {
   map.off('click', onDrawClick);
   map.off('dblclick', finishDraw);
   document.getElementById('btn-draw').classList.remove('active');
+  reorderBySize();
   updateInfoPanel();
   renderList();
 }
@@ -518,6 +551,7 @@ function copyExportText() {
 
 // ─── Init ───
 loadExisting();
+reorderBySize();
 renderList();
 // Add center markers for neighborhoods without polygons
 HOODS.forEach(hood => {
