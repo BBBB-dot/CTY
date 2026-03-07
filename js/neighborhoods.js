@@ -121,6 +121,12 @@ const SUB_TO_LOCALITY = {
   'MN-SpanishHarlem': 'East Harlem',
 };
 
+// ─── Map rotation (degrees east of north) ────────────────────────
+// Manhattan's street grid runs ~29° east of true north. Rotating the
+// map by this amount makes the island vertical — the classic NYC
+// subway-map orientation.
+const MAP_ROTATION_DEG = 29;
+
 // ─── Load GeoJSON + render Leaflet map ──────────────────────────
 function initHoodMap() {
   if (hoodMapReady) return;
@@ -134,7 +140,16 @@ function initHoodMap() {
     container.style.height = Math.round(w * 0.85) + 'px';
   }
 
-  // Create Leaflet map — natural orientation, no rotation
+  // CSS rotation for vertical Manhattan. Expand container to 150%
+  // so rotated corners are clipped by the wrapper's overflow:hidden.
+  container.style.transform = `rotate(${MAP_ROTATION_DEG}deg)`;
+  container.style.transformOrigin = 'center center';
+  container.style.width = '150%';
+  container.style.height = '150%';
+  container.style.marginLeft = '-25%';
+  container.style.marginTop = '-25%';
+
+  // Create Leaflet map
   hoodMap = L.map('hood-map-container', {
     zoomControl: false,
     attributionControl: false,
@@ -142,8 +157,9 @@ function initHoodMap() {
     maxZoom: 18,
   }).setView([40.758, -73.985], 12);
 
-  // CartoDB Dark Matter WITH labels — street names = city life
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // CartoDB Dark Matter (no labels — rotated text looks bad)
+  // Streets are still visible as lines which gives the city feel.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     subdomains: 'abcd',
   }).addTo(hoodMap);
@@ -206,11 +222,12 @@ function renderLeafletMap(geo) {
     const latlngs = geoJSONToLatLngs(f.geometry);
     if (!latlngs) return;
 
+    // Start invisible — only visited/lived will get color via refreshMapColors()
     const layer = L.polygon(latlngs, {
-      color: hasSubs ? 'transparent' : 'rgba(255,255,255,0.06)',
-      weight: hasSubs ? 0 : 0.5,
+      color: 'transparent',
+      weight: 0,
       fillColor: fill,
-      fillOpacity: hasSubs ? 0.04 : 0.20,
+      fillOpacity: 0,
       interactive: !hasSubs,
     }).addTo(hoodMap);
 
@@ -219,7 +236,13 @@ function renderLeafletMap(geo) {
       layer.on('click', function() { openHoodDetail(code); });
       layer.on('mouseover', function(e) {
         showHoodTooltipLeaflet(e, code);
-        layer.setStyle({ fillOpacity: 0.35, color: 'rgba(255,255,255,0.3)', weight: 1 });
+        // Subtle hover outline — don't fill unless visited/lived
+        const status = getNeighborhoodStatus(code);
+        if (status === 'lived' || status === 'visited') {
+          layer.setStyle({ ...STYLE.hover, fillColor: fill, fillOpacity: STYLE.hover.fillOpacity + 0.15 });
+        } else {
+          layer.setStyle({ ...STYLE.hover, fillColor: fill });
+        }
       });
       layer.on('mouseout', function() {
         hideHoodTooltip();
@@ -343,12 +366,13 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
       hoodMap.getPane(paneName).style.zIndex = 400 + entry.priority;
     }
 
+    // Start invisible — refreshMapColors() will light up visited/lived
     const layer = L.polygon(latlngs, {
       pane: paneName,
-      color: 'rgba(255,255,255,0.05)',
-      weight: 0.5,
+      color: 'transparent',
+      weight: 0,
       fillColor: subFill,
-      fillOpacity: 0.18,
+      fillOpacity: 0,
       interactive: true,
     }).addTo(hoodMap);
 
@@ -364,17 +388,16 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
 
     layer.on('mouseover', function(e) {
       showHoodTooltipLeaflet(e, entry.subId);
-      // Consistent, subtle highlight: slight brightness + thin border
-      layer.setStyle({
-        fillOpacity: 0.35,
-        color: 'rgba(255,255,255,0.25)',
-        weight: 1,
-      });
+      const status = getNeighborhoodStatus(entry.subId);
+      if (status === 'lived' || status === 'visited') {
+        layer.setStyle({ ...STYLE.hover, fillColor: subFill, fillOpacity: STYLE.hover.fillOpacity + 0.15 });
+      } else {
+        layer.setStyle({ ...STYLE.hover, fillColor: subFill });
+      }
     });
 
     layer.on('mouseout', function() {
       hideHoodTooltip();
-      // Restore to current status style
       refreshSingleLayer(entry.subId);
     });
 
@@ -439,11 +462,14 @@ function hideHoodTooltip() {
 // ─── Style constants ────────────────────────────────────────────
 // Consistent opacity levels across all neighborhoods
 const STYLE = {
-  unvisited:  { fillOpacity: 0.22, color: 'rgba(255,255,255,0.06)', weight: 0.5 },
-  overlapped: { fillOpacity: 0.12, color: 'rgba(255,255,255,0.04)', weight: 0.3 },
-  visited:    { fillOpacity: 0.45, color: 'rgba(255,255,255,0.18)', weight: 0.8 },
-  lived:      { fillOpacity: 0.60, color: 'rgba(255,255,255,0.28)', weight: 1.0 },
-  hover:      { fillOpacity: 0.38, color: 'rgba(255,255,255,0.30)', weight: 1.2 },
+  // Unvisited: completely invisible — no fill, no border
+  unvisited:  { fillOpacity: 0, color: 'transparent', weight: 0 },
+  overlapped: { fillOpacity: 0, color: 'transparent', weight: 0 },
+  // Hover: subtle outline so users can see what they're pointing at
+  hover:      { fillOpacity: 0.12, color: 'rgba(255,255,255,0.35)', weight: 1.2 },
+  // Visited/lived: these are the only states that show color
+  visited:    { fillOpacity: 0.40, color: 'rgba(255,255,255,0.18)', weight: 0.8 },
+  lived:      { fillOpacity: 0.55, color: 'rgba(255,255,255,0.28)', weight: 1.0 },
 };
 
 // ─── Refresh map colors based on visited/lived status ───────────
