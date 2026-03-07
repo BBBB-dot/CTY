@@ -219,20 +219,22 @@ function renderOSMStreets(streetGeoJSON, pathFn, group) {
     .style('fill', 'none')
     .style('stroke', d => {
       const hw = d.properties.highway;
-      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.35)';
-      if (hw === 'primary') return 'rgba(255,255,255,0.28)';
-      if (hw === 'secondary') return 'rgba(255,255,255,0.20)';
-      if (hw === 'tertiary') return 'rgba(255,255,255,0.15)';
-      return 'rgba(255,255,255,0.12)';
+      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.7)';
+      if (hw === 'primary') return 'rgba(255,255,255,0.55)';
+      if (hw === 'secondary') return 'rgba(255,255,255,0.45)';
+      if (hw === 'tertiary') return 'rgba(255,255,255,0.35)';
+      return 'rgba(255,255,255,0.25)';
     })
     .style('stroke-width', d => {
       const hw = d.properties.highway;
-      if (hw === 'motorway' || hw === 'trunk') return 0.8;
-      if (hw === 'primary') return 0.55;
-      if (hw === 'secondary') return 0.4;
-      if (hw === 'tertiary') return 0.3;
-      return 0.2;
+      if (hw === 'motorway' || hw === 'trunk') return 1.5;
+      if (hw === 'primary') return 1.2;
+      if (hw === 'secondary') return 0.8;
+      if (hw === 'tertiary') return 0.6;
+      return 0.35;
     })
+    .style('stroke-linecap', 'round')
+    .style('stroke-linejoin', 'round')
     .style('pointer-events', 'none');
 }
 
@@ -568,8 +570,9 @@ function initHoodMap() {
       .attr('class', d => 'street-line street-' + d.properties.type)
       .attr('d', hoodPath)
       .style('fill', 'none')
-      .style('stroke', d => d.properties.type === 'avenue' ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.10)')
-      .style('stroke-width', d => d.properties.type === 'avenue' ? 0.5 : 0.25)
+      .style('stroke', d => d.properties.type === 'avenue' ? 'rgba(255,255,255,0.50)' : 'rgba(255,255,255,0.30)')
+      .style('stroke-width', d => d.properties.type === 'avenue' ? 1.0 : 0.5)
+      .style('stroke-linecap', 'round')
       .style('pointer-events', 'none');
 
     // Fetch real OSM streets in the background and replace the fallback
@@ -765,9 +768,8 @@ function initHoodMap() {
           .attr('data-sub-id', sub.id)
           .attr('data-nta', ntaCode)
           .style('fill', subFill)
-          .style('fill-opacity', 0.18)
-          .style('stroke', 'rgba(255,255,255,0.20)')
-          .style('stroke-width', 0.8)
+          .style('fill-opacity', 0.45)
+          .style('stroke', 'none')
           .style('cursor', 'pointer')
           .on('click', function(event) {
             event.stopPropagation();
@@ -809,9 +811,8 @@ function initHoodMap() {
             .attr('data-sub-id', sub.id)
             .attr('data-nta', ntaCode)
             .style('fill', subFill)
-            .style('fill-opacity', 0.18)
-            .style('stroke', 'rgba(255,255,255,0.15)')
-            .style('stroke-width', 0.5)
+            .style('fill-opacity', 0.45)
+            .style('stroke', 'none')
             .style('cursor', 'pointer')
             .on('click', function(event) {
               event.stopPropagation();
@@ -857,9 +858,8 @@ function initHoodMap() {
               .attr('data-sub-id', sub.id)
               .attr('data-nta', ntaCode)
               .style('fill', subFill)
-              .style('fill-opacity', 0.18)
-              .style('stroke', 'rgba(255,255,255,0.15)')
-              .style('stroke-width', 0.5)
+              .style('fill-opacity', 0.45)
+              .style('stroke', 'none')
               .style('cursor', 'pointer')
               .on('click', function(event) {
                 event.stopPropagation();
@@ -1037,9 +1037,9 @@ function refreshMapColors() {
     const hasSubs = getSubsForNTA(code).length > 0;
 
     if (hasSubs) {
-      // Base NTA path fills gaps between sub-neighborhood polygons
-      el.style('fill', fill).style('fill-opacity', 0.12)
-        .style('stroke', 'rgba(255,255,255,0.15)').style('stroke-width', 0.8);
+      // Base NTA path — subtle backdrop visible only in gaps between sub-polygons
+      el.style('fill', fill).style('fill-opacity', 0.08)
+        .style('stroke', 'none');
     } else {
       const status = getNeighborhoodStatus(code);
       if (status === 'lived') {
@@ -1094,19 +1094,19 @@ function refreshMapColors() {
     const subFill = getNTAFill(entry.subId, hood.borough, Math.max(0, idx), Math.max(1, total));
 
     if (status === 'lived') {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.7)
-        .style('stroke', '#fff').style('stroke-width', 1.2);
+      entry.el.style('fill', subFill).style('fill-opacity', 0.75)
+        .style('stroke', 'none');
     } else if (status === 'visited') {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.4)
-        .style('stroke', 'rgba(255,255,255,0.3)').style('stroke-width', 0.8);
+      entry.el.style('fill', subFill).style('fill-opacity', 0.55)
+        .style('stroke', 'none');
     } else if (entry.el.classed('sub-path-overlapped')) {
-      // Lower-priority overlapping polygon — translucent, streets show through
-      entry.el.style('fill', subFill).style('fill-opacity', 0.10)
-        .style('stroke', 'rgba(255,255,255,0.10)').style('stroke-width', 0.5);
+      // Lower-priority overlapping polygon — visible but behind higher-priority
+      entry.el.style('fill', subFill).style('fill-opacity', 0.30)
+        .style('stroke', 'none');
     } else {
-      // Default unvisited — translucent overlay, streets visible through fill
-      entry.el.style('fill', subFill).style('fill-opacity', 0.18)
-        .style('stroke', 'rgba(255,255,255,0.20)').style('stroke-width', 0.8);
+      // Default unvisited — streets cut through as visible boundaries
+      entry.el.style('fill', subFill).style('fill-opacity', 0.45)
+        .style('stroke', 'none');
     }
   });
 }
