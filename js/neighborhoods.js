@@ -331,6 +331,7 @@ function initHoodMap() {
         const lb = sub.localityBounds;
         const geoCoords = lb.polygon.map(p => [p[1], p[0]]); // [lng, lat]
         geoCoords.push(geoCoords[0]); // close the ring
+        geoCoords.reverse(); // D3 requires clockwise winding for exterior rings
 
         const geoFeature = {
           type: 'Feature',
