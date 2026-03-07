@@ -121,6 +121,151 @@ function polygonToSVGPath(pts) {
   return 'M' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z';
 }
 
+// ─── Manhattan street grid generator ─────────────────────────
+// Generates approximate GeoJSON LineStrings for Manhattan's major
+// avenues and cross streets using a mathematical model of the grid.
+// Grid is tilted ~29° east of true north.
+function generateManhattanStreets() {
+  const features = [];
+  // Grid parameters
+  const gridAngle = 29 * Math.PI / 180; // 29° in radians
+  const cosA = Math.cos(gridAngle), sinA = Math.sin(gridAngle);
+  const latScale = 1 / 111.0; // degrees per km (latitude)
+  const lonScale = 1 / (111.0 * Math.cos(40.75 * Math.PI / 180)); // degrees per km (longitude)
+
+  // Grid-north unit vector (in degrees per km)
+  const gnLat = cosA * latScale;
+  const gnLon = sinA * lonScale;
+  // Grid-east unit vector (perpendicular, in degrees per km)
+  const geLat = -sinA * latScale;
+  const geLon = cosA * lonScale;
+
+  // Reference: 5th Ave & 34th St ≈ 40.7490, -73.9857
+  const refLat = 40.7490, refLon = -73.9857;
+  // 5th Ave is avenue index 0
+
+  // Avenue positions (grid-east offsets from 5th Ave in km)
+  // Negative = east, positive = west
+  const avenues = [
+    { name: '1st Ave', offset: -1.07 },
+    { name: '2nd Ave', offset: -0.84 },
+    { name: '3rd Ave', offset: -0.61 },
+    { name: 'Lexington', offset: -0.42 },
+    { name: 'Park Ave', offset: -0.27 },
+    { name: 'Madison', offset: -0.13 },
+    { name: '5th Ave', offset: 0 },
+    { name: '6th Ave', offset: 0.18 },
+    { name: 'Broadway', offset: 0.13 }, // diagonal, approximate
+    { name: '7th Ave', offset: 0.35 },
+    { name: '8th Ave', offset: 0.53 },
+    { name: '9th Ave', offset: 0.71 },
+    { name: '10th Ave', offset: 0.88 },
+    { name: '11th Ave', offset: 1.06 },
+    { name: 'West Side', offset: 1.22 },
+    { name: 'FDR', offset: -1.25 },
+  ];
+
+  // Grid-north range: from Houston (~-2.9 km) to 155th (~7.8 km) relative to 34th
+  const southKm = -2.9;
+  const northKm = 7.8;
+
+  // Generate avenue lines
+  avenues.forEach(ave => {
+    const startLat = refLat + southKm * gnLat + ave.offset * geLat;
+    const startLon = refLon + southKm * gnLon + ave.offset * geLon;
+    const endLat = refLat + northKm * gnLat + ave.offset * geLat;
+    const endLon = refLon + northKm * gnLon + ave.offset * geLon;
+
+    features.push({
+      type: 'Feature',
+      properties: { name: ave.name, type: 'avenue' },
+      geometry: {
+        type: 'LineString',
+        coordinates: [[startLon, startLat], [endLon, endLat]]
+      }
+    });
+  });
+
+  // Generate cross streets at major intervals
+  // Block spacing ~0.08 km. Major streets every 10 blocks.
+  // Houston = 0 (approx -2.9 km from 34th). Streets increase northward.
+  const majorStreets = [
+    { name: 'Houston', km: -2.9 },
+    { name: '14th', km: -1.78 },
+    { name: '23rd', km: -1.06 },
+    { name: '34th', km: 0 },
+    { name: '42nd', km: 0.64 },
+    { name: '50th', km: 1.28 },
+    { name: '57th', km: 1.84 },
+    { name: '66th', km: 2.56 },
+    { name: '72nd', km: 3.04 },
+    { name: '79th', km: 3.60 },
+    { name: '86th', km: 4.16 },
+    { name: '96th', km: 4.96 },
+    { name: '106th', km: 5.76 },
+    { name: '110th', km: 6.08 },
+    { name: '116th', km: 6.56 },
+    { name: '125th', km: 7.28 },
+    { name: '135th', km: 8.08 },
+    { name: '145th', km: 8.88 },
+    { name: '155th', km: 9.68 },
+  ];
+
+  // Cross street east-west extent varies (Manhattan narrows)
+  // At 34th: ~-1.3 km to +1.3 km from 5th Ave
+  majorStreets.forEach(st => {
+    // Narrower at top and bottom of Manhattan
+    const fraction = (st.km - southKm) / (northKm - southKm);
+    let westExtent = 1.30;
+    let eastExtent = -1.30;
+    // Manhattan narrows above 110th and below Houston
+    if (fraction > 0.75) {
+      const narrow = (fraction - 0.75) / 0.25;
+      westExtent = 1.30 * (1 - narrow * 0.35);
+      eastExtent = -1.30 * (1 - narrow * 0.25);
+    }
+    if (fraction < 0.1) {
+      westExtent = 0.90;
+      eastExtent = -0.80;
+    }
+
+    const startLat = refLat + st.km * gnLat + westExtent * geLat;
+    const startLon = refLon + st.km * gnLon + westExtent * geLon;
+    const endLat = refLat + st.km * gnLat + eastExtent * geLat;
+    const endLon = refLon + st.km * gnLon + eastExtent * geLon;
+
+    features.push({
+      type: 'Feature',
+      properties: { name: st.name + ' St', type: 'street' },
+      geometry: {
+        type: 'LineString',
+        coordinates: [[startLon, startLat], [endLon, endLat]]
+      }
+    });
+  });
+
+  return { type: 'FeatureCollection', features };
+}
+
+// ─── Polygon area (shoelace) for SVG path points ─────────────
+function svgPolyArea(pathEl) {
+  try {
+    const d = pathEl.getAttribute('d');
+    if (!d) return 0;
+    const pts = d.replace(/[MLZ]/g, ' ').trim().split(/\s+/).map(s => {
+      const [x, y] = s.split(',').map(Number);
+      return { x, y };
+    }).filter(p => !isNaN(p.x) && !isNaN(p.y));
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length;
+      area += pts[i].x * pts[j].y;
+      area -= pts[j].x * pts[i].y;
+    }
+    return Math.abs(area / 2);
+  } catch(e) { return 0; }
+}
+
 // ─── Load GeoJSON and render map ───────────────────────────────
 function initHoodMap() {
   if (hoodMapReady) return;
@@ -164,6 +309,14 @@ function initHoodMap() {
       // Sub-neighborhood cell strokes
       mapGroup.selectAll('.sub-path')
         .style('stroke-width', Math.max(0.15, 0.4 / k));
+
+      // Street grid — show more detail when zoomed in
+      mapGroup.selectAll('.street-line')
+        .style('stroke-width', d => {
+          const base = d.properties.type === 'avenue' ? 0.4 : 0.25;
+          return base / k;
+        })
+        .style('stroke-opacity', Math.min(1, 0.4 + (k - 1) * 0.15));
 
       // All labels — collision detection to hide overlapping ones
       const subFontSize = Math.max(1.5, 3 / k);
@@ -272,6 +425,20 @@ function initHoodMap() {
       })
       .style('stroke', 'rgba(255,255,255,0.04)')
       .style('stroke-width', 0.3);
+
+    // Draw Manhattan street grid (subtle, behind neighborhoods)
+    const streetData = generateManhattanStreets();
+    const streetGroup = mapGroup.append('g').attr('class', 'street-grid');
+    streetGroup.selectAll('.street-line')
+      .data(streetData.features)
+      .enter()
+      .append('path')
+      .attr('class', d => 'street-line street-' + d.properties.type)
+      .attr('d', hoodPath)
+      .style('fill', 'none')
+      .style('stroke', d => d.properties.type === 'avenue' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)')
+      .style('stroke-width', d => d.properties.type === 'avenue' ? 0.4 : 0.25)
+      .style('pointer-events', 'none');
 
     // Draw Central Park as a special green feature
     if (centralParkFeature) {
@@ -572,6 +739,21 @@ function initHoodMap() {
       }
     });
 
+    // ─── Priority reorder: smaller sub-paths on top ─────────────
+    // Sort sub-path SVG elements by area (largest first = behind, smallest last = on top)
+    const subPathNodes = mapGroup.selectAll('.sub-path').nodes();
+    if (subPathNodes.length > 1) {
+      const withArea = subPathNodes.map(node => ({
+        node,
+        area: svgPolyArea(node)
+      }));
+      // Sort descending by area so largest is first (painted first = behind)
+      withArea.sort((a, b) => b.area - a.area);
+      withArea.forEach(item => {
+        item.node.parentNode.appendChild(item.node);
+      });
+    }
+
     // NTA labels for NTAs WITHOUT subs (subs have their own labels)
     ntaPaths.forEach(f => {
       if (ntasWithSubs[f.properties.ntaCode]) return;
@@ -720,27 +902,52 @@ function refreshMapColors() {
     }
   });
 
-  // Sub-neighborhood paths
+  // Sub-neighborhood paths — compute areas and identify overlapping large ones
+  const subNodes = [];
   mapGroup.selectAll('.sub-path').each(function() {
     const el = d3.select(this);
     const subId = el.attr('data-sub-id');
-    const status = getNeighborhoodStatus(subId);
-    const hood = getNeighborhoodById(subId);
+    const area = svgPolyArea(this);
+    const bbox = this.getBBox ? this.getBBox() : null;
+    subNodes.push({ el, subId, area, bbox, node: this });
+  });
+
+  // Mark sub-paths that are overlapped by smaller ones
+  subNodes.forEach(entry => {
+    const isOverlapped = entry.bbox && subNodes.some(other =>
+      other.subId !== entry.subId &&
+      other.area < entry.area &&
+      other.bbox &&
+      !(other.bbox.x > entry.bbox.x + entry.bbox.width ||
+        other.bbox.x + other.bbox.width < entry.bbox.x ||
+        other.bbox.y > entry.bbox.y + entry.bbox.height ||
+        other.bbox.y + other.bbox.height < entry.bbox.y)
+    );
+    entry.el.classed('sub-path-overlapped', isOverlapped && !getNeighborhoodStatus(entry.subId));
+  });
+
+  subNodes.forEach(entry => {
+    const status = getNeighborhoodStatus(entry.subId);
+    const hood = getNeighborhoodById(entry.subId);
     if (!hood) return;
 
-    const idx = NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === getSubNTA(subId))
-      .findIndex(h => h.id === subId);
-    const total = NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === getSubNTA(subId)).length;
-    const subFill = getNTAFill(subId, hood.borough, Math.max(0, idx), Math.max(1, total));
+    const idx = NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === getSubNTA(entry.subId))
+      .findIndex(h => h.id === entry.subId);
+    const total = NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === getSubNTA(entry.subId)).length;
+    const subFill = getNTAFill(entry.subId, hood.borough, Math.max(0, idx), Math.max(1, total));
 
     if (status === 'lived') {
-      el.style('fill', subFill).style('fill-opacity', 0.9)
+      entry.el.style('fill', subFill).style('fill-opacity', 0.9)
         .style('stroke', '#fff').style('stroke-width', 1.2);
     } else if (status === 'visited') {
-      el.style('fill', subFill).style('fill-opacity', 0.5)
+      entry.el.style('fill', subFill).style('fill-opacity', 0.5)
         .style('stroke', 'rgba(255,255,255,0.3)').style('stroke-width', 0.8);
+    } else if (entry.el.classed('sub-path-overlapped')) {
+      // Large overlapping polygon — dim by default, reveal on hover
+      entry.el.style('fill', subFill).style('fill-opacity', 0.04)
+        .style('stroke', 'rgba(255,255,255,0.06)').style('stroke-width', 0.5);
     } else {
-      el.style('fill', subFill).style('fill-opacity', 0.18)
+      entry.el.style('fill', subFill).style('fill-opacity', 0.18)
         .style('stroke', 'rgba(255,255,255,0.15)').style('stroke-width', 0.8);
     }
   });

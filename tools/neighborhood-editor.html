@@ -243,6 +243,71 @@ function reorderBySize() {
   if (selectedId && polygons[selectedId]) {
     polygons[selectedId].bringToFront();
   }
+  // Apply priority visibility — hide larger polygons that overlap smaller ones
+  applyPriorityVisibility(entries);
+}
+
+// ─── Restore z-order only (no visibility recalc) ───
+function restoreZOrder() {
+  const entries = Object.entries(polygons).map(([id, poly]) => ({
+    id, poly, area: polyArea(poly.getLatLngs()[0])
+  }));
+  entries.sort((a, b) => b.area - a.area);
+  entries.forEach(e => e.poly.remove());
+  entries.forEach(e => e.poly.addTo(map));
+  if (selectedId && polygons[selectedId]) {
+    polygons[selectedId].bringToFront();
+  }
+}
+
+// ─── Hide larger overlapping polygons unless hovered ───
+function applyPriorityVisibility(entries) {
+  if (!entries) {
+    entries = Object.entries(polygons).map(([id, poly]) => {
+      const latlngs = poly.getLatLngs()[0];
+      return { id, poly, area: polyArea(latlngs) };
+    });
+  }
+
+  entries.forEach(entry => {
+    // Check if any smaller polygon's bounds overlap this one
+    const isOverlapped = entries.some(other =>
+      other.id !== entry.id &&
+      other.area < entry.area &&
+      entry.poly.getBounds().intersects(other.poly.getBounds())
+    );
+
+    const hood = HOODS.find(h => h.id === entry.id);
+    const color = getColor(hood?.parent);
+
+    // Remove old hover handlers to avoid stacking
+    entry.poly.off('mouseover');
+    entry.poly.off('mouseout');
+
+    if (isOverlapped) {
+      // Large overlapped polygon: nearly invisible by default
+      entry.poly.setStyle({ fillOpacity: 0.03, opacity: 0.12 });
+      entry.poly._isHiddenLarge = true;
+
+      entry.poly.on('mouseover', function() {
+        if (this._isHiddenLarge && entry.id !== selectedId) {
+          this.setStyle({ fillOpacity: 0.3, opacity: 0.8 });
+          this.bringToFront();
+        }
+      });
+      entry.poly.on('mouseout', function() {
+        if (this._isHiddenLarge && entry.id !== selectedId) {
+          this.setStyle({ fillOpacity: 0.03, opacity: 0.12 });
+          // Restore z-order without re-triggering visibility calc
+          restoreZOrder();
+        }
+      });
+    } else {
+      // Small or non-overlapping polygon: normal visibility
+      entry.poly.setStyle({ fillOpacity: 0.25, opacity: 1, color: color });
+      entry.poly._isHiddenLarge = false;
+    }
+  });
 }
 
 // ─── Colors per parent NTA ───
@@ -322,7 +387,11 @@ function selectHood(id) {
   if (selectedId && polygons[selectedId]) {
     const prev = HOODS.find(h => h.id === selectedId);
     const prevColor = getColor(prev?.parent);
-    polygons[selectedId].setStyle({ color: prevColor, weight: 2, fillOpacity: 0.25 });
+    if (polygons[selectedId]._isHiddenLarge) {
+      polygons[selectedId].setStyle({ color: prevColor, weight: 2, fillOpacity: 0.03, opacity: 0.12 });
+    } else {
+      polygons[selectedId].setStyle({ color: prevColor, weight: 2, fillOpacity: 0.25 });
+    }
     disableEditing(selectedId);
   }
 
