@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neighborhood Overlap Resolver</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+
+#sidebar {
+  width: 380px; min-width: 380px; background: #16213e; border-right: 1px solid #333;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#sidebar-header {
+  padding: 16px; border-bottom: 1px solid #333; background: #0f3460;
+}
+#sidebar-header h2 { font-size: 17px; margin-bottom: 4px; }
+#sidebar-header .subtitle { font-size: 12px; color: #aaa; }
+
+#progress-bar {
+  height: 4px; background: #1a1a2e; position: relative;
+}
+#progress-fill {
+  height: 100%; background: #FF1493; transition: width 0.3s;
+}
+
+#conflict-panel {
+  flex: 1; overflow-y: auto; padding: 16px;
+}
+
+.conflict-card {
+  background: rgba(255,255,255,0.04); border: 1px solid #333; border-radius: 12px;
+  padding: 16px; margin-bottom: 12px;
+}
+.conflict-card h3 { font-size: 14px; color: #FF1493; margin-bottom: 8px; }
+.conflict-card .vs { text-align: center; color: #666; font-size: 11px; margin: 8px 0; font-weight: 700; letter-spacing: 2px; }
+
+.hood-option {
+  padding: 12px; border-radius: 8px; border: 2px solid #333; cursor: pointer;
+  transition: all 0.15s; margin-bottom: 8px; position: relative;
+}
+.hood-option:hover { border-color: #555; background: rgba(255,255,255,0.04); }
+.hood-option.selected-a { border-color: #4ade80; background: rgba(74,222,128,0.08); }
+.hood-option.selected-b { border-color: #60a5fa; background: rgba(96,165,250,0.08); }
+.hood-option .hood-name { font-size: 14px; font-weight: 600; }
+.hood-option .hood-id { font-size: 10px; color: #888; margin-top: 2px; }
+.hood-option .hood-area { font-size: 10px; color: #666; margin-top: 2px; }
+.hood-option .winner-badge {
+  position: absolute; top: 8px; right: 8px; font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 10px; display: none;
+}
+.hood-option.chosen .winner-badge {
+  display: inline-block; background: #4ade80; color: #000;
+}
+.hood-option.loser .winner-badge {
+  display: inline-block; background: #ef4444; color: #fff;
+}
+
+.nav-buttons {
+  display: flex; gap: 8px; margin-top: 12px;
+}
+.nav-btn {
+  flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #555;
+  background: #0f3460; color: #fff; cursor: pointer; font-size: 13px;
+  font-weight: 600; transition: all 0.15s; text-align: center;
+}
+.nav-btn:hover { background: #1a4a8a; }
+.nav-btn.primary { background: #FF1493; border-color: #FF1493; }
+.nav-btn.primary:hover { background: #e0127f; }
+.nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.nav-btn.skip { background: transparent; border-color: #444; color: #888; }
+
+#stats {
+  padding: 12px 16px; border-top: 1px solid #333; background: #0f3460;
+  font-size: 12px; color: #aaa; display: flex; justify-content: space-between;
+}
+#stats .resolved { color: #4ade80; font-weight: 600; }
+#stats .remaining { color: #ef4444; }
+
+#map-container { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+
+#controls {
+  position: absolute; top: 12px; right: 12px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ctrl-btn {
+  padding: 8px 16px; background: #0f3460; border: 1px solid #555; color: #fff;
+  cursor: pointer; font-size: 13px; border-radius: 6px; transition: all 0.15s;
+}
+.ctrl-btn:hover { background: #1a4a8a; }
+.ctrl-btn.export { background: #065f46; border-color: #10b981; }
+
+/* Legend overlay */
+#legend {
+  position: absolute; bottom: 12px; left: 12px; z-index: 1000;
+  background: rgba(15,52,96,0.95); border: 1px solid #444; border-radius: 8px;
+  padding: 10px 14px; font-size: 12px; backdrop-filter: blur(8px);
+}
+#legend .legend-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+#legend .dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
+#legend .dot-a { background: rgba(74,222,128,0.3); border-color: #4ade80; }
+#legend .dot-b { background: rgba(96,165,250,0.3); border-color: #60a5fa; }
+#legend .dot-overlap { background: rgba(255,20,147,0.4); border-color: #FF1493; }
+
+/* History list */
+#history-panel { display: none; flex: 1; overflow-y: auto; padding: 16px; }
+.history-item {
+  padding: 8px 12px; border-bottom: 1px solid #222; font-size: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; transition: background 0.15s;
+}
+.history-item:hover { background: rgba(255,255,255,0.04); }
+.history-item .winner { color: #4ade80; font-weight: 600; }
+.history-item .pair { color: #aaa; }
+
+#tab-bar {
+  display: flex; border-bottom: 1px solid #333;
+}
+.tab-btn {
+  flex: 1; padding: 10px; text-align: center; font-size: 12px; font-weight: 600;
+  background: transparent; border: none; color: #888; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.tab-btn.active { color: #FF1493; border-bottom-color: #FF1493; }
+.tab-btn:hover { color: #fff; }
+
+/* Export modal */
+#export-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+}
+#export-modal.active { display: flex; }
+#export-content {
+  background: #16213e; border: 1px solid #555; border-radius: 12px;
+  padding: 24px; width: 90%; max-width: 800px; max-height: 80vh;
+  display: flex; flex-direction: column;
+}
+#export-content h3 { margin-bottom: 12px; color: #FF1493; }
+#export-textarea {
+  flex: 1; min-height: 400px; background: #0a0a1a; color: #4ade80;
+  border: 1px solid #444; border-radius: 6px; padding: 12px;
+  font-family: 'Fira Code', monospace; font-size: 12px; resize: none;
+}
+#export-content .btns { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h2>Overlap Resolver</h2>
+    <div class="subtitle">Step through overlapping neighborhoods and assign ownership</div>
+  </div>
+  <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
+
+  <div id="tab-bar">
+    <button class="tab-btn active" onclick="showTab('resolve')">Resolve</button>
+    <button class="tab-btn" onclick="showTab('history')">History (<span id="history-count">0</span>)</button>
+  </div>
+
+  <div id="conflict-panel">
+    <div id="loading-msg" style="text-align:center;padding:40px;color:#666">
+      Analyzing overlaps...
+    </div>
+  </div>
+
+  <div id="history-panel"></div>
+
+  <div id="stats">
+    <span>Resolved: <span class="resolved" id="stat-resolved">0</span></span>
+    <span>Remaining: <span class="remaining" id="stat-remaining">0</span></span>
+    <span>Total: <span id="stat-total">0</span></span>
+  </div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div id="controls">
+    <button class="ctrl-btn" onclick="resetView()">Reset View</button>
+    <button class="ctrl-btn export" onclick="exportDecisions()">Export Priorities</button>
+  </div>
+  <div id="legend">
+    <div class="legend-row"><div class="dot dot-a"></div> Neighborhood A</div>
+    <div class="legend-row"><div class="dot dot-b"></div> Neighborhood B</div>
+    <div class="legend-row"><div class="dot dot-overlap"></div> Overlap zone</div>
+  </div>
+</div>
+
+<div id="export-modal">
+  <div id="export-content">
+    <h3>Export Priority Decisions</h3>
+    <p style="font-size:13px;color:#aaa;margin-bottom:12px">
+      This generates a priority map. Neighborhoods with higher priority render on top in overlapping areas.
+    </p>
+    <textarea id="export-textarea" readonly></textarea>
+    <div class="btns">
+      <button class="ctrl-btn" onclick="document.getElementById('export-modal').classList.remove('active')">Close</button>
+      <button class="ctrl-btn export" onclick="copyExport()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Manhattan sub-neighborhoods ───
+const HOODS = [
+  { id: 'MN-FiDi', name: 'Financial District', center: [40.7075, -74.0113], parent: 'MN0101' },
+  { id: 'MN-BPC', name: 'Battery Park City', center: [40.7115, -74.0165], parent: 'MN0101' },
+  { id: 'MN-Tribeca', name: 'TriBeCa', center: [40.7163, -74.0086], parent: 'MN0102' },
+  { id: 'MN-CivCtr', name: 'Civic Center', center: [40.7134, -74.0014], parent: 'MN0102' },
+  { id: 'MN-SoHo', name: 'SoHo', center: [40.7233, -74.0030], parent: 'MN0201' },
+  { id: 'MN-LittleItaly', name: 'Little Italy', center: [40.7191, -73.9973], parent: 'MN0201' },
+  { id: 'MN-HudsonSq', name: 'Hudson Square', center: [40.7265, -74.0080], parent: 'MN0201' },
+  { id: 'MN-Nolita', name: 'NoLita', center: [40.7234, -73.9952], parent: 'MN0201' },
+  { id: 'MN-GrnwchVlg', name: 'Greenwich Village', center: [40.7336, -73.9996], parent: 'MN0202' },
+  { id: 'MN-NoHo', name: 'NoHo', center: [40.7265, -73.9927], parent: 'MN0202' },
+  { id: 'MN-WestVlg', name: 'West Village', center: [40.7358, -74.0036], parent: 'MN0203' },
+  { id: 'MN-Meatpacking', name: 'Meatpacking District', center: [40.7410, -74.0078], parent: 'MN0203' },
+  { id: 'MN-Chinatown', name: 'Chinatown', center: [40.7158, -73.9970], parent: 'MN0301' },
+  { id: 'MN-TwoBridges', name: 'Two Bridges', center: [40.7108, -73.9890], parent: 'MN0301' },
+  { id: 'MN-LES', name: 'Lower East Side', center: [40.7150, -73.9839], parent: 'MN0302' },
+  { id: 'MN-Bowery', name: 'Bowery', center: [40.7200, -73.9935], parent: 'MN0302' },
+  { id: 'MN-EastVlg', name: 'East Village', center: [40.7265, -73.9815], parent: 'MN0303' },
+  { id: 'MN-AlphaCity', name: 'Alphabet City', center: [40.7242, -73.9770], parent: 'MN0303' },
+  { id: 'MN-Chelsea', name: 'Chelsea', center: [40.7462, -74.0000], parent: 'MN0401' },
+  { id: 'MN-HudsonYards', name: 'Hudson Yards', center: [40.7535, -74.0015], parent: 'MN0401' },
+  { id: 'MN-HellsK', name: "Hell's Kitchen", center: [40.7632, -73.9930], parent: 'MN0402' },
+  { id: 'MN-GarmentDist', name: 'Garment District', center: [40.7535, -73.9900], parent: 'MN0402' },
+  { id: 'MN-Flatiron', name: 'Flatiron District', center: [40.7401, -73.9897], parent: 'MN0501' },
+  { id: 'MN-UnionSq', name: 'Union Square', center: [40.7359, -73.9903], parent: 'MN0501' },
+  { id: 'MN-NoMad', name: 'NoMad', center: [40.7447, -73.9880], parent: 'MN0501' },
+  { id: 'MN-Koreatown', name: 'Koreatown', center: [40.7478, -73.9867], parent: 'MN0501' },
+  { id: 'MN-Midtown', name: 'Midtown', center: [40.7549, -73.9840], parent: 'MN0502' },
+  { id: 'MN-TimesSq', name: 'Times Square', center: [40.7580, -73.9855], parent: 'MN0502' },
+  { id: 'MN-DiamondDist', name: 'Diamond District', center: [40.7565, -73.9817], parent: 'MN0502' },
+  { id: 'MN-StuyTown', name: 'Stuyvesant Town', center: [40.7317, -73.9780], parent: 'MN0601' },
+  { id: 'MN-PeterCooper', name: 'Peter Cooper Village', center: [40.7350, -73.9760], parent: 'MN0601' },
+  { id: 'MN-Gramercy', name: 'Gramercy Park', center: [40.7374, -73.9838], parent: 'MN0602' },
+  { id: 'MN-RoseHill', name: 'Rose Hill', center: [40.7420, -73.9820], parent: 'MN0602' },
+  { id: 'MN-MurrayHill', name: 'Murray Hill', center: [40.7485, -73.9765], parent: 'MN0603' },
+  { id: 'MN-KipsBay', name: 'Kips Bay', center: [40.7395, -73.9770], parent: 'MN0603' },
+  { id: 'MN-EastMidtown', name: 'East Midtown', center: [40.7520, -73.9695], parent: 'MN0604' },
+  { id: 'MN-TurtleBay', name: 'Turtle Bay', center: [40.7540, -73.9670], parent: 'MN0604' },
+  { id: 'MN-SuttonPl', name: 'Sutton Place', center: [40.7580, -73.9610], parent: 'MN0604' },
+  { id: 'MN-TudorCity', name: 'Tudor City', center: [40.7490, -73.9710], parent: 'MN0604' },
+  { id: 'MN-LincolnSq', name: 'Lincoln Square', center: [40.7742, -73.9835], parent: 'MN0701' },
+  { id: 'MN-UWS', name: 'Upper West Side', center: [40.7870, -73.9750], parent: 'MN0702' },
+  { id: 'MN-ManValley', name: 'Manhattan Valley', center: [40.7985, -73.9680], parent: 'MN0703' },
+  { id: 'MN-LenoxHill', name: 'Lenox Hill', center: [40.7640, -73.9620], parent: 'MN0801' },
+  { id: 'MN-UES', name: 'Upper East Side', center: [40.7680, -73.9580], parent: 'MN0801' },
+  { id: 'MN-CarnegieHill', name: 'Carnegie Hill', center: [40.7830, -73.9560], parent: 'MN0802' },
+  { id: 'MN-Yorkville', name: 'Yorkville', center: [40.7765, -73.9490], parent: 'MN0803' },
+  { id: 'MN-MorningsideHts', name: 'Morningside Heights', center: [40.8100, -73.9628], parent: 'MN0901' },
+  { id: 'MN-Manhattanville', name: 'Manhattanville', center: [40.8175, -73.9570], parent: 'MN0902' },
+  { id: 'MN-HamiltonHts', name: 'Hamilton Heights', center: [40.8260, -73.9510], parent: 'MN0903' },
+  { id: 'MN-SugarHill', name: 'Sugar Hill', center: [40.8310, -73.9445], parent: 'MN0903' },
+  { id: 'MN-Harlem', name: 'Harlem', center: [40.8095, -73.9460], parent: 'MN1001' },
+  { id: 'MN-SpanishHarlem', name: 'Spanish Harlem', center: [40.7920, -73.9380], parent: 'MN1101' },
+  { id: 'MN1101-N', name: 'East Harlem', center: [40.7970, -73.9370], parent: 'MN1101' },
+];
+
+const LOCALITY_TO_ID = {
+  'Financial District': 'MN-FiDi', 'Battery Park City': 'MN-BPC',
+  'TriBeCa': 'MN-Tribeca', 'Civic Center': 'MN-CivCtr',
+  'SoHo': 'MN-SoHo', 'Little Italy': 'MN-LittleItaly',
+  'Hudson Square': 'MN-HudsonSq', 'NoLita': 'MN-Nolita',
+  'Greenwich Village': 'MN-GrnwchVlg', 'NoHo': 'MN-NoHo',
+  'West Village': 'MN-WestVlg', 'Meatpacking District': 'MN-Meatpacking',
+  'Chinatown': 'MN-Chinatown', 'Two Bridges': 'MN-TwoBridges',
+  'Lower East Side': 'MN-LES', 'Bowery': 'MN-Bowery',
+  'East Village': 'MN-EastVlg', 'Alphabet City': 'MN-AlphaCity',
+  'Chelsea': 'MN-Chelsea', 'Hudson Yards': 'MN-HudsonYards',
+  "Hell's Kitchen": 'MN-HellsK', 'Garment District': 'MN-GarmentDist',
+  'Flatiron District': 'MN-Flatiron', 'Union Square': 'MN-UnionSq',
+  'NoMad': 'MN-NoMad', 'Koreatown': 'MN-Koreatown',
+  'Midtown Center': 'MN-Midtown', 'Theater District': 'MN-TimesSq',
+  'Diamond District': 'MN-DiamondDist',
+  'Stuyvesant Town': 'MN-StuyTown', 'Peter Cooper Village': 'MN-PeterCooper',
+  'Gramercy Park': 'MN-Gramercy', 'Rose Hill': 'MN-RoseHill',
+  'Murray Hill': 'MN-MurrayHill', 'Kips Bay': 'MN-KipsBay',
+  'Midtown East': 'MN-EastMidtown', 'Turtle Bay': 'MN-TurtleBay',
+  'Sutton Place': 'MN-SuttonPl', 'Tudor City': 'MN-TudorCity',
+  'Lincoln Square': 'MN-LincolnSq',
+  'Upper West Side': 'MN-UWS', 'Manhattan Valley': 'MN-ManValley',
+  'Lenox Hill': 'MN-LenoxHill', 'Upper East Side': 'MN-UES',
+  'Carnegie Hill': 'MN-CarnegieHill', 'Yorkville': 'MN-Yorkville',
+  'Morningside Heights': 'MN-MorningsideHts',
+  'Manhattanville': 'MN-Manhattanville',
+  'Hamilton Heights': 'MN-HamiltonHts', 'Sugar Hill': 'MN-SugarHill',
+  'Harlem': 'MN-Harlem', 'East Harlem': 'MN-SpanishHarlem',
+};
+
+const EXISTING_BOUNDS = {};
+</script>
+<script src="../data/locality-boundaries.js"></script>
+<script>
+// ─── State ───
+const polyData = {};  // hoodId → { latlngs, bounds, area, name }
+const conflicts = []; // { a: hoodId, b: hoodId, overlapArea }
+const decisions = {}; // `${a}|${b}` → winnerId
+let currentIdx = 0;
+let mapLayers = {};   // temporary display layers
+
+// ─── Init map ───
+const map = L.map('map', { zoomControl: true }).setView([40.758, -73.985], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+// ─── Polygon area (shoelace) ───
+function polyArea(latlngs) {
+  let area = 0;
+  for (let i = 0; i < latlngs.length; i++) {
+    const j = (i + 1) % latlngs.length;
+    area += latlngs[i][1] * latlngs[j][0];
+    area -= latlngs[j][1] * latlngs[i][0];
+  }
+  return Math.abs(area / 2);
+}
+
+// ─── Point-in-polygon (ray casting) ───
+function pointInPoly(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    if ((yi > pt[1]) !== (yj > pt[1]) &&
+        pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// ─── Check real polygon overlap (sample vertices) ───
+function polygonsOverlap(polyA, polyB) {
+  // Check if any vertex of A is inside B or vice versa
+  const aInB = polyA.some(pt => pointInPoly(pt, polyB));
+  const bInA = polyB.some(pt => pointInPoly(pt, polyA));
+  return aInB || bInA;
+}
+
+// ─── Load polygons and detect conflicts ───
+function init() {
+  if (typeof LOCALITY_BOUNDARIES === 'undefined') {
+    document.getElementById('loading-msg').textContent = 'Error: locality-boundaries.js not loaded';
+    return;
+  }
+
+  // Load all polygons
+  Object.entries(LOCALITY_BOUNDARIES).forEach(([name, data]) => {
+    if (data.borough !== 'manhattan') return;
+    const hoodId = LOCALITY_TO_ID[name];
+    if (!hoodId) return;
+    const hood = HOODS.find(h => h.id === hoodId);
+    if (!hood) return;
+
+    const latlngs = data.polygon.map(p => [p[0], p[1]]);
+    const bounds = L.latLngBounds(latlngs.map(p => [p[0], p[1]]));
+    polyData[hoodId] = {
+      latlngs,
+      bounds,
+      area: polyArea(latlngs),
+      name: hood.name,
+      parent: hood.parent,
+    };
+  });
+
+  // Detect overlapping pairs
+  const ids = Object.keys(polyData);
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = ids[i], b = ids[j];
+      const dA = polyData[a], dB = polyData[b];
+
+      // Quick bounding box check
+      if (!dA.bounds.intersects(dB.bounds)) continue;
+
+      // Real polygon overlap check
+      if (polygonsOverlap(dA.latlngs, dB.latlngs)) {
+        // Put smaller polygon as "a" (the one that typically gets priority)
+        if (dA.area <= dB.area) {
+          conflicts.push({ a, b });
+        } else {
+          conflicts.push({ a: b, b: a });
+        }
+      }
+    }
+  }
+
+  // Sort: largest area difference first (most obvious conflicts first)
+  conflicts.sort((x, y) => {
+    const diffX = Math.abs(polyData[x.b].area - polyData[x.a].area);
+    const diffY = Math.abs(polyData[y.b].area - polyData[y.a].area);
+    return diffY - diffX;
+  });
+
+  updateStats();
+
+  if (conflicts.length === 0) {
+    document.getElementById('loading-msg').textContent = 'No overlapping neighborhoods found!';
+    return;
+  }
+
+  showConflict(0);
+}
+
+// ─── Display a conflict ───
+function showConflict(idx) {
+  if (idx < 0 || idx >= conflicts.length) return;
+  currentIdx = idx;
+  const c = conflicts[idx];
+  const dA = polyData[c.a], dB = polyData[c.b];
+  const key = c.a + '|' + c.b;
+  const winner = decisions[key] || null;
+
+  // Clear map layers
+  Object.values(mapLayers).forEach(l => map.removeLayer(l));
+  mapLayers = {};
+
+  // Draw all other polygons very faintly for context
+  Object.entries(polyData).forEach(([id, d]) => {
+    if (id === c.a || id === c.b) return;
+    const l = L.polygon(d.latlngs.map(p => [p[0], p[1]]), {
+      color: '#444', weight: 0.5, fillColor: '#222', fillOpacity: 0.08
+    }).addTo(map);
+    l.bindTooltip(d.name, { sticky: true, className: 'context-tooltip' });
+    mapLayers['ctx-' + id] = l;
+  });
+
+  // Draw neighborhood B (larger, below)
+  const layerB = L.polygon(dB.latlngs.map(p => [p[0], p[1]]), {
+    color: '#60a5fa', weight: 2.5, fillColor: '#60a5fa', fillOpacity: 0.15,
+    dashArray: winner === c.b ? null : '5,5'
+  }).addTo(map);
+  layerB.bindTooltip(dB.name, { sticky: true });
+  mapLayers.b = layerB;
+
+  // Draw neighborhood A (smaller, on top)
+  const layerA = L.polygon(dA.latlngs.map(p => [p[0], p[1]]), {
+    color: '#4ade80', weight: 2.5, fillColor: '#4ade80', fillOpacity: 0.2,
+    dashArray: winner === c.a ? null : '5,5'
+  }).addTo(map);
+  layerA.bindTooltip(dA.name, { sticky: true });
+  mapLayers.a = layerA;
+
+  // Zoom to show both
+  const combinedBounds = dA.bounds.extend(dB.bounds);
+  map.fitBounds(combinedBounds, { padding: [60, 60], maxZoom: 16 });
+
+  // Update sidebar
+  const areaA = (dA.area * 1e6).toFixed(1);
+  const areaB = (dB.area * 1e6).toFixed(1);
+
+  const panel = document.getElementById('conflict-panel');
+  panel.innerHTML = `
+    <div class="conflict-card">
+      <h3>Conflict ${idx + 1} of ${conflicts.length}</h3>
+      <div class="hood-option ${winner === c.a ? 'chosen' : winner === c.b ? 'loser' : ''} selected-a"
+           onclick="decide('${c.a}', '${c.b}', '${c.a}')" id="opt-a">
+        <div class="hood-name" style="color:#4ade80">${dA.name}</div>
+        <div class="hood-id">${c.a} &middot; NTA ${dA.parent}</div>
+        <div class="hood-area">Area: ${areaA} (smaller)</div>
+        <span class="winner-badge">${winner === c.a ? 'WINNER' : 'LOSES'}</span>
+      </div>
+      <div class="vs">VS</div>
+      <div class="hood-option ${winner === c.b ? 'chosen' : winner === c.a ? 'loser' : ''} selected-b"
+           onclick="decide('${c.a}', '${c.b}', '${c.b}')" id="opt-b">
+        <div class="hood-name" style="color:#60a5fa">${dB.name}</div>
+        <div class="hood-id">${c.b} &middot; NTA ${dB.parent}</div>
+        <div class="hood-area">Area: ${areaB} (larger)</div>
+        <span class="winner-badge">${winner === c.b ? 'WINNER' : 'LOSES'}</span>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:#888">
+        Click a neighborhood to give it priority in the overlapping area.
+        The winner's polygon will be fully visible; the loser dims in the overlap zone.
+      </div>
+      <div class="nav-buttons">
+        <button class="nav-btn" onclick="showConflict(${idx - 1})" ${idx === 0 ? 'disabled' : ''}>&larr; Prev</button>
+        <button class="nav-btn skip" onclick="skipAndNext()">Skip</button>
+        <button class="nav-btn primary" onclick="showConflict(${idx + 1})" ${idx === conflicts.length - 1 ? 'disabled' : ''}>Next &rarr;</button>
+      </div>
+    </div>
+  `;
+
+  updateProgress();
+}
+
+// ─── Make a decision ───
+function decide(a, b, winner) {
+  const key = a + '|' + b;
+  decisions[key] = winner;
+  showConflict(currentIdx); // refresh display
+  updateStats();
+  updateHistory();
+}
+
+// ─── Skip to next unresolved ───
+function skipAndNext() {
+  // Find next unresolved conflict
+  for (let i = currentIdx + 1; i < conflicts.length; i++) {
+    const c = conflicts[i];
+    if (!decisions[c.a + '|' + c.b]) {
+      showConflict(i);
+      return;
+    }
+  }
+  // Wrap around
+  for (let i = 0; i < currentIdx; i++) {
+    const c = conflicts[i];
+    if (!decisions[c.a + '|' + c.b]) {
+      showConflict(i);
+      return;
+    }
+  }
+  // All resolved — go to next
+  if (currentIdx < conflicts.length - 1) showConflict(currentIdx + 1);
+}
+
+// ─── Update stats ───
+function updateStats() {
+  const resolved = Object.keys(decisions).length;
+  document.getElementById('stat-resolved').textContent = resolved;
+  document.getElementById('stat-remaining').textContent = conflicts.length - resolved;
+  document.getElementById('stat-total').textContent = conflicts.length;
+  document.getElementById('history-count').textContent = resolved;
+}
+
+function updateProgress() {
+  const pct = conflicts.length > 0 ? ((currentIdx + 1) / conflicts.length) * 100 : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+// ─── History tab ───
+function updateHistory() {
+  const panel = document.getElementById('history-panel');
+  const items = Object.entries(decisions).map(([key, winner]) => {
+    const [a, b] = key.split('|');
+    const loser = winner === a ? b : a;
+    return { key, winner, loser, a, b, winnerName: polyData[winner]?.name, loserName: polyData[loser]?.name };
+  });
+
+  panel.innerHTML = items.length === 0
+    ? '<div style="text-align:center;padding:40px;color:#666">No decisions yet</div>'
+    : items.map((item, i) => `
+      <div class="history-item" onclick="jumpToConflict('${item.a}', '${item.b}')">
+        <span class="pair">${item.winnerName} vs ${item.loserName}</span>
+        <span class="winner">${item.winnerName} wins</span>
+      </div>
+    `).join('');
+}
+
+function jumpToConflict(a, b) {
+  const idx = conflicts.findIndex(c => c.a === a && c.b === b);
+  if (idx >= 0) {
+    showTab('resolve');
+    showConflict(idx);
+  }
+}
+
+// ─── Tabs ───
+function showTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (tab === 'resolve') {
+    document.getElementById('conflict-panel').style.display = 'block';
+    document.getElementById('history-panel').style.display = 'none';
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+  } else {
+    document.getElementById('conflict-panel').style.display = 'none';
+    document.getElementById('history-panel').style.display = 'block';
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    updateHistory();
+  }
+}
+
+// ─── Reset view ───
+function resetView() { map.setView([40.758, -73.985], 13); }
+
+// ─── Export ───
+function exportDecisions() {
+  // Generate a priority map: higher number = render on top
+  const priorityScores = {};
+
+  // Start with area-based default: smaller = higher priority
+  Object.entries(polyData).forEach(([id, d]) => {
+    priorityScores[id] = 0;
+  });
+
+  // Apply manual decisions
+  Object.entries(decisions).forEach(([key, winner]) => {
+    const [a, b] = key.split('|');
+    const loser = winner === a ? b : a;
+    priorityScores[winner] = (priorityScores[winner] || 0) + 1;
+    priorityScores[loser] = (priorityScores[loser] || 0) - 1;
+  });
+
+  // Sort by priority (highest last = rendered on top)
+  const sorted = Object.entries(priorityScores)
+    .sort((a, b) => a[1] - b[1]);
+
+  const lines = [
+    '// Neighborhood render priority — generated by Overlap Resolver',
+    '// Higher number = rendered on top (wins overlap conflicts)',
+    '// Add this to your data/ folder and load in index.html',
+    'const NEIGHBORHOOD_PRIORITY = {',
+  ];
+
+  sorted.forEach(([id, score], i) => {
+    const name = polyData[id]?.name || id;
+    lines.push(`  '${id}': ${i + 1},  // ${name} (score: ${score})`);
+  });
+  lines.push('};');
+
+  lines.push('');
+  lines.push('// Raw decisions (for reference):');
+  lines.push('// ' + JSON.stringify(decisions));
+
+  document.getElementById('export-textarea').value = lines.join('\n');
+  document.getElementById('export-modal').classList.add('active');
+}
+
+function copyExport() {
+  const ta = document.getElementById('export-textarea');
+  ta.select();
+  document.execCommand('copy');
+  alert('Copied to clipboard!');
+}
+
+// ─── Start ───
+init();
+</script>
+</body>
+</html>
