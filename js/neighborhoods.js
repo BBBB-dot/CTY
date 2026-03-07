@@ -16,7 +16,7 @@ function initHoodMap() {
   if (!container) return;
 
   const w = container.clientWidth || 900;
-  const h = Math.round(w * 0.75); // maintain aspect ratio
+  const h = Math.round(w * 0.85); // taller aspect for NYC's vertical shape
 
   hoodSvg = d3.select('#hood-map-container')
     .append('svg')
@@ -29,9 +29,27 @@ function initHoodMap() {
   d3.json('data/nyc-neighborhoods.json').then(function(geo) {
     hoodGeoData = geo;
 
-    // Fit projection to full NYC bounds
+    // Focus projection on main city mass (exclude Rockaways stretching bounds)
+    // Custom bbox: roughly from Tottenville to northern Bronx, western NJ border to eastern Queens
+    const focusBbox = {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [-74.26, 40.49],  // SW corner (Staten Island south)
+            [-74.26, 40.92],  // NW corner (Bronx north)
+            [-73.70, 40.92],  // NE corner (eastern Queens)
+            [-73.70, 40.49],  // SE corner
+            [-74.26, 40.49]
+          ]]
+        }
+      }]
+    };
     hoodProjection = d3.geoMercator()
-      .fitSize([w - 40, h - 40], geo);
+      .fitSize([w - 20, h - 20], focusBbox);
 
     hoodPath = d3.geoPath().projection(hoodProjection);
 
