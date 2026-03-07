@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manhattan Neighborhood Boundary Editor</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+
+#sidebar {
+  width: 320px; min-width: 320px; background: #16213e; border-right: 1px solid #333;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#sidebar h2 { padding: 16px; font-size: 18px; border-bottom: 1px solid #333; background: #0f3460; }
+#hood-search { width: 100%; padding: 10px 14px; background: #1a1a2e; border: 1px solid #444; color: #fff; font-size: 14px; outline: none; }
+#hood-search:focus { border-color: #FF1493; }
+#hood-list { flex: 1; overflow-y: auto; }
+.hood-item {
+  padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #222;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background 0.15s;
+}
+.hood-item:hover { background: #1a2744; }
+.hood-item.active { background: #0f3460; border-left: 3px solid #FF1493; }
+.hood-item.has-poly .hood-status { color: #4ade80; }
+.hood-item.no-poly .hood-status { color: #ef4444; }
+.hood-name { font-size: 13px; font-weight: 500; }
+.hood-id { font-size: 10px; color: #888; margin-top: 2px; }
+.hood-status { font-size: 11px; font-weight: 600; }
+
+#map-container { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+
+#controls {
+  position: absolute; top: 12px; right: 12px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ctrl-btn {
+  padding: 8px 16px; background: #0f3460; border: 1px solid #555; color: #fff;
+  cursor: pointer; font-size: 13px; border-radius: 6px; transition: all 0.15s;
+  white-space: nowrap;
+}
+.ctrl-btn:hover { background: #1a4a8a; }
+.ctrl-btn.active { background: #FF1493; border-color: #FF1493; }
+.ctrl-btn.danger { background: #991b1b; border-color: #dc2626; }
+.ctrl-btn.export { background: #065f46; border-color: #10b981; }
+
+#info-panel {
+  position: absolute; bottom: 12px; left: 12px; right: 12px; z-index: 1000;
+  background: rgba(15, 52, 96, 0.95); border: 1px solid #444; border-radius: 8px;
+  padding: 12px 16px; font-size: 13px; backdrop-filter: blur(8px);
+  display: none;
+}
+#info-panel h3 { color: #FF1493; margin-bottom: 6px; font-size: 15px; }
+#info-panel .hint { color: #aaa; font-size: 12px; margin-top: 4px; }
+
+#export-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+}
+#export-modal.active { display: flex; }
+#export-content {
+  background: #16213e; border: 1px solid #555; border-radius: 12px;
+  padding: 24px; width: 90%; max-width: 800px; max-height: 80vh;
+  display: flex; flex-direction: column;
+}
+#export-content h3 { margin-bottom: 12px; color: #FF1493; }
+#export-textarea {
+  flex: 1; min-height: 400px; background: #0a0a1a; color: #4ade80;
+  border: 1px solid #444; border-radius: 6px; padding: 12px;
+  font-family: 'Fira Code', monospace; font-size: 12px; resize: none;
+}
+#export-content .btns { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>Neighborhoods (Manhattan)</h2>
+  <input type="text" id="hood-search" placeholder="Search neighborhoods..." oninput="filterList()">
+  <div id="hood-list"></div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-draw" onclick="toggleDraw()">✏️ Draw Polygon</button>
+    <button class="ctrl-btn danger" id="btn-delete" onclick="deleteSelected()">🗑️ Delete Polygon</button>
+    <button class="ctrl-btn" onclick="resetView()">🎯 Reset View</button>
+    <button class="ctrl-btn export" onclick="exportAll()">📦 Export All</button>
+    <button class="ctrl-btn export" onclick="copyExport()">📋 Copy to Clipboard</button>
+  </div>
+  <div id="info-panel">
+    <h3 id="info-name"></h3>
+    <div id="info-details"></div>
+    <div class="hint" id="info-hint"></div>
+  </div>
+</div>
+
+<div id="export-modal">
+  <div id="export-content">
+    <h3>Export Boundaries — locality-boundaries.js</h3>
+    <textarea id="export-textarea" readonly></textarea>
+    <div class="btns">
+      <button class="ctrl-btn" onclick="document.getElementById('export-modal').classList.remove('active')">Close</button>
+      <button class="ctrl-btn export" onclick="copyExportText()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Manhattan sub-neighborhoods from CTY ───
+const HOODS = [
+  { id: 'MN-FiDi', name: 'Financial District', center: [40.7075, -74.0113], parent: 'MN0101' },
+  { id: 'MN-BPC', name: 'Battery Park City', center: [40.7115, -74.0165], parent: 'MN0101' },
+  { id: 'MN-Tribeca', name: 'TriBeCa', center: [40.7163, -74.0086], parent: 'MN0102' },
+  { id: 'MN-CivCtr', name: 'Civic Center', center: [40.7134, -74.0014], parent: 'MN0102' },
+  { id: 'MN-SoHo', name: 'SoHo', center: [40.7233, -74.0030], parent: 'MN0201' },
+  { id: 'MN-LittleItaly', name: 'Little Italy', center: [40.7191, -73.9973], parent: 'MN0201' },
+  { id: 'MN-HudsonSq', name: 'Hudson Square', center: [40.7265, -74.0080], parent: 'MN0201' },
+  { id: 'MN-Nolita', name: 'NoLita', center: [40.7234, -73.9952], parent: 'MN0201' },
+  { id: 'MN-GrnwchVlg', name: 'Greenwich Village', center: [40.7336, -73.9996], parent: 'MN0202' },
+  { id: 'MN-NoHo', name: 'NoHo', center: [40.7265, -73.9927], parent: 'MN0202' },
+  { id: 'MN-WestVlg', name: 'West Village', center: [40.7358, -74.0036], parent: 'MN0203' },
+  { id: 'MN-Meatpacking', name: 'Meatpacking District', center: [40.7410, -74.0078], parent: 'MN0203' },
+  { id: 'MN-Chinatown', name: 'Chinatown', center: [40.7158, -73.9970], parent: 'MN0301' },
+  { id: 'MN-TwoBridges', name: 'Two Bridges', center: [40.7108, -73.9890], parent: 'MN0301' },
+  { id: 'MN-LES', name: 'Lower East Side', center: [40.7150, -73.9839], parent: 'MN0302' },
+  { id: 'MN-Bowery', name: 'Bowery', center: [40.7200, -73.9935], parent: 'MN0302' },
+  { id: 'MN-EastVlg', name: 'East Village', center: [40.7265, -73.9815], parent: 'MN0303' },
+  { id: 'MN-AlphaCity', name: 'Alphabet City', center: [40.7242, -73.9770], parent: 'MN0303' },
+  { id: 'MN-Chelsea', name: 'Chelsea', center: [40.7462, -74.0000], parent: 'MN0401' },
+  { id: 'MN-HudsonYards', name: 'Hudson Yards', center: [40.7535, -74.0015], parent: 'MN0401' },
+  { id: 'MN-HellsK', name: "Hell's Kitchen", center: [40.7632, -73.9930], parent: 'MN0402' },
+  { id: 'MN-GarmentDist', name: 'Garment District', center: [40.7535, -73.9900], parent: 'MN0402' },
+  { id: 'MN-Flatiron', name: 'Flatiron District', center: [40.7401, -73.9897], parent: 'MN0501' },
+  { id: 'MN-UnionSq', name: 'Union Square', center: [40.7359, -73.9903], parent: 'MN0501' },
+  { id: 'MN-NoMad', name: 'NoMad', center: [40.7447, -73.9880], parent: 'MN0501' },
+  { id: 'MN-Koreatown', name: 'Koreatown', center: [40.7478, -73.9867], parent: 'MN0501' },
+  { id: 'MN-Midtown', name: 'Midtown', center: [40.7549, -73.9840], parent: 'MN0502' },
+  { id: 'MN-TimesSq', name: 'Times Square', center: [40.7580, -73.9855], parent: 'MN0502' },
+  { id: 'MN-DiamondDist', name: 'Diamond District', center: [40.7565, -73.9817], parent: 'MN0502' },
+  { id: 'MN-StuyTown', name: 'Stuyvesant Town', center: [40.7317, -73.9780], parent: 'MN0601' },
+  { id: 'MN-PeterCooper', name: 'Peter Cooper Village', center: [40.7350, -73.9760], parent: 'MN0601' },
+  { id: 'MN-Gramercy', name: 'Gramercy Park', center: [40.7374, -73.9838], parent: 'MN0602' },
+  { id: 'MN-RoseHill', name: 'Rose Hill', center: [40.7420, -73.9820], parent: 'MN0602' },
+  { id: 'MN-MurrayHill', name: 'Murray Hill', center: [40.7485, -73.9765], parent: 'MN0603' },
+  { id: 'MN-KipsBay', name: 'Kips Bay', center: [40.7395, -73.9770], parent: 'MN0603' },
+  { id: 'MN-EastMidtown', name: 'East Midtown', center: [40.7520, -73.9695], parent: 'MN0604' },
+  { id: 'MN-TurtleBay', name: 'Turtle Bay', center: [40.7540, -73.9670], parent: 'MN0604' },
+  { id: 'MN-SuttonPl', name: 'Sutton Place', center: [40.7580, -73.9610], parent: 'MN0604' },
+  { id: 'MN-TudorCity', name: 'Tudor City', center: [40.7490, -73.9710], parent: 'MN0604' },
+  { id: 'MN-LincolnSq', name: 'Lincoln Square', center: [40.7742, -73.9835], parent: 'MN0701' },
+  { id: 'MN-UWS', name: 'Upper West Side', center: [40.7870, -73.9750], parent: 'MN0702' },
+  { id: 'MN-ManValley', name: 'Manhattan Valley', center: [40.7985, -73.9680], parent: 'MN0703' },
+  { id: 'MN-LenoxHill', name: 'Lenox Hill', center: [40.7640, -73.9620], parent: 'MN0801' },
+  { id: 'MN-UES', name: 'Upper East Side', center: [40.7680, -73.9580], parent: 'MN0801' },
+  { id: 'MN-CarnegieHill', name: 'Carnegie Hill', center: [40.7830, -73.9560], parent: 'MN0802' },
+  { id: 'MN-Yorkville', name: 'Yorkville', center: [40.7765, -73.9490], parent: 'MN0803' },
+  { id: 'MN-MorningsideHts', name: 'Morningside Heights', center: [40.8100, -73.9628], parent: 'MN0901' },
+  { id: 'MN-Manhattanville', name: 'Manhattanville', center: [40.8175, -73.9570], parent: 'MN0902' },
+  { id: 'MN-HamiltonHts', name: 'Hamilton Heights', center: [40.8260, -73.9510], parent: 'MN0903' },
+  { id: 'MN-SugarHill', name: 'Sugar Hill', center: [40.8310, -73.9445], parent: 'MN0903' },
+  { id: 'MN-Harlem', name: 'Harlem', center: [40.8095, -73.9460], parent: 'MN1001' },
+  { id: 'MN-SpanishHarlem', name: 'Spanish Harlem', center: [40.7920, -73.9380], parent: 'MN1101' },
+  { id: 'MN1101-N', name: 'East Harlem', center: [40.7970, -73.9370], parent: 'MN1101' },
+  { id: 'MN-CentralPark', name: 'Central Park', center: [40.7829, -73.9654] },
+];
+
+// ─── Existing locality boundaries (pre-loaded) ───
+const EXISTING_BOUNDS = {};
+</script>
+<script src="../data/locality-boundaries.js"></script>
+<script>
+// Map locality names to sub-hood IDs
+const LOCALITY_TO_ID = {
+  'Financial District': 'MN-FiDi', 'Battery Park City': 'MN-BPC',
+  'TriBeCa': 'MN-Tribeca', 'Civic Center': 'MN-CivCtr',
+  'SoHo': 'MN-SoHo', 'Little Italy': 'MN-LittleItaly',
+  'Hudson Square': 'MN-HudsonSq', 'NoLita': 'MN-Nolita',
+  'Greenwich Village': 'MN-GrnwchVlg', 'NoHo': 'MN-NoHo',
+  'West Village': 'MN-WestVlg', 'Meatpacking District': 'MN-Meatpacking',
+  'Chinatown': 'MN-Chinatown', 'Two Bridges': 'MN-TwoBridges',
+  'Lower East Side': 'MN-LES', 'Bowery': 'MN-Bowery',
+  'East Village': 'MN-EastVlg', 'Alphabet City': 'MN-AlphaCity',
+  'Chelsea': 'MN-Chelsea', 'Hudson Yards': 'MN-HudsonYards',
+  "Hell's Kitchen": 'MN-HellsK', 'Garment District': 'MN-GarmentDist',
+  'Flatiron District': 'MN-Flatiron', 'Union Square': 'MN-UnionSq',
+  'NoMad': 'MN-NoMad', 'Koreatown': 'MN-Koreatown',
+  'Midtown Center': 'MN-Midtown', 'Theater District': 'MN-TimesSq',
+  'Diamond District': 'MN-DiamondDist',
+  'Stuyvesant Town': 'MN-StuyTown', 'Peter Cooper Village': 'MN-PeterCooper',
+  'Gramercy Park': 'MN-Gramercy', 'Rose Hill': 'MN-RoseHill',
+  'Murray Hill': 'MN-MurrayHill', 'Kips Bay': 'MN-KipsBay',
+  'Midtown East': 'MN-EastMidtown', 'Turtle Bay': 'MN-TurtleBay',
+  'Sutton Place': 'MN-SuttonPl', 'Tudor City': 'MN-TudorCity',
+  'Lincoln Square': 'MN-LincolnSq',
+  'Upper West Side': 'MN-UWS', 'Manhattan Valley': 'MN-ManValley',
+  'Lenox Hill': 'MN-LenoxHill', 'Upper East Side': 'MN-UES',
+  'Carnegie Hill': 'MN-CarnegieHill', 'Yorkville': 'MN-Yorkville',
+  'Morningside Heights': 'MN-MorningsideHts',
+  'Manhattanville': 'MN-Manhattanville',
+  'Hamilton Heights': 'MN-HamiltonHts', 'Sugar Hill': 'MN-SugarHill',
+  'Harlem': 'MN-Harlem', 'East Harlem': 'MN-SpanishHarlem',
+};
+
+// ─── State ───
+const polygons = {};       // hoodId → L.Polygon
+let selectedId = null;
+let drawMode = false;
+let drawPoints = [];
+let drawMarkers = [];
+let drawPolyline = null;
+
+// ─── Colors per parent NTA ───
+const NTA_COLORS = {};
+const palette = [
+  '#FF1493','#FF6B9D','#C71585','#DB7093','#FF69B4','#E91E90',
+  '#FF4081','#F50057','#D81B60','#AD1457','#880E4F','#EC407A',
+  '#F06292','#F48FB1','#CE93D8','#BA68C8','#AB47BC','#9C27B0',
+  '#7B1FA2','#6A1B9A','#E040FB','#EA80FC','#FF80AB','#FF4081',
+  '#F44336','#E53935','#C62828',
+];
+let colorIdx = 0;
+function getColor(ntaCode) {
+  if (!ntaCode) return '#FF1493';
+  if (!NTA_COLORS[ntaCode]) { NTA_COLORS[ntaCode] = palette[colorIdx++ % palette.length]; }
+  return NTA_COLORS[ntaCode];
+}
+
+// ─── Init map ───
+const map = L.map('map', { zoomControl: true }).setView([40.758, -73.985], 14);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+// ─── Load existing boundaries ───
+function loadExisting() {
+  if (typeof LOCALITY_BOUNDARIES === 'undefined') return;
+
+  Object.entries(LOCALITY_BOUNDARIES).forEach(([name, data]) => {
+    if (data.borough !== 'manhattan') return;
+    const hoodId = LOCALITY_TO_ID[name];
+    if (!hoodId) return;
+    const hood = HOODS.find(h => h.id === hoodId);
+    if (!hood) return;
+
+    const latlngs = data.polygon.map(p => [p[0], p[1]]);
+    const color = getColor(hood.parent);
+    const poly = L.polygon(latlngs, {
+      color: color, weight: 2, fillColor: color, fillOpacity: 0.25,
+      className: 'hood-poly'
+    }).addTo(map);
+
+    poly.on('click', () => selectHood(hoodId));
+    poly.bindTooltip(hood.name, { sticky: true, className: 'hood-tooltip' });
+    polygons[hoodId] = poly;
+  });
+}
+
+// ─── Render sidebar list ───
+function renderList() {
+  const list = document.getElementById('hood-list');
+  const q = document.getElementById('hood-search').value.toLowerCase();
+
+  list.innerHTML = HOODS
+    .filter(h => !q || h.name.toLowerCase().includes(q) || h.id.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(h => {
+      const hasPoly = !!polygons[h.id];
+      return `<div class="hood-item ${hasPoly ? 'has-poly' : 'no-poly'} ${selectedId === h.id ? 'active' : ''}"
+                   onclick="selectHood('${h.id}')">
+        <div>
+          <div class="hood-name">${h.name}</div>
+          <div class="hood-id">${h.id} → ${h.parent || 'none'}</div>
+        </div>
+        <div class="hood-status">${hasPoly ? '✓' : '✗'}</div>
+      </div>`;
+    }).join('');
+}
+
+function filterList() { renderList(); }
+
+// ─── Select a neighborhood ───
+function selectHood(id) {
+  // Deselect previous
+  if (selectedId && polygons[selectedId]) {
+    const prev = HOODS.find(h => h.id === selectedId);
+    const prevColor = getColor(prev?.parent);
+    polygons[selectedId].setStyle({ color: prevColor, weight: 2, fillOpacity: 0.25 });
+    disableEditing(selectedId);
+  }
+
+  selectedId = id;
+  const hood = HOODS.find(h => h.id === id);
+  if (!hood) return;
+
+  // Highlight
+  if (polygons[id]) {
+    polygons[id].setStyle({ color: '#FFD700', weight: 3, fillOpacity: 0.35 });
+    enableEditing(id);
+    map.fitBounds(polygons[id].getBounds(), { padding: [60, 60], maxZoom: 16 });
+  } else {
+    map.setView(hood.center, 16);
+  }
+
+  // Info panel
+  const panel = document.getElementById('info-panel');
+  panel.style.display = 'block';
+  document.getElementById('info-name').textContent = hood.name;
+  document.getElementById('info-details').textContent = polygons[id]
+    ? `${polygons[id].getLatLngs()[0].length} vertices · Drag vertices to edit`
+    : 'No polygon yet';
+  document.getElementById('info-hint').textContent = polygons[id]
+    ? 'Drag corner points to reshape. Click "Delete Polygon" to remove.'
+    : 'Click "Draw Polygon" then click points on the map to create a boundary.';
+
+  renderList();
+}
+
+// ─── Enable/disable vertex editing ───
+function enableEditing(id) {
+  if (!polygons[id]) return;
+  // Leaflet doesn't have built-in editing; we add draggable vertex markers
+  const poly = polygons[id];
+  const latlngs = poly.getLatLngs()[0];
+  if (poly._editMarkers) return;
+
+  poly._editMarkers = latlngs.map((ll, i) => {
+    const m = L.circleMarker(ll, {
+      radius: 5, color: '#FFD700', fillColor: '#fff', fillOpacity: 1,
+      weight: 2, draggable: false
+    }).addTo(map);
+
+    // Make draggable via mouse events
+    m._idx = i;
+    m._parentPoly = poly;
+    m.on('mousedown', startDragVertex);
+    return m;
+  });
+}
+
+function disableEditing(id) {
+  if (!polygons[id] || !polygons[id]._editMarkers) return;
+  polygons[id]._editMarkers.forEach(m => { map.removeLayer(m); });
+  delete polygons[id]._editMarkers;
+}
+
+// ─── Vertex dragging ───
+let draggingMarker = null;
+function startDragVertex(e) {
+  draggingMarker = e.target;
+  map.dragging.disable();
+  map.on('mousemove', onDragVertex);
+  map.on('mouseup', stopDragVertex);
+}
+function onDragVertex(e) {
+  if (!draggingMarker) return;
+  draggingMarker.setLatLng(e.latlng);
+  const poly = draggingMarker._parentPoly;
+  const latlngs = poly.getLatLngs()[0];
+  latlngs[draggingMarker._idx] = e.latlng;
+  poly.setLatLngs(latlngs);
+}
+function stopDragVertex() {
+  if (!draggingMarker) return;
+  map.dragging.enable();
+  map.off('mousemove', onDragVertex);
+  map.off('mouseup', stopDragVertex);
+  draggingMarker = null;
+  updateInfoPanel();
+}
+
+function updateInfoPanel() {
+  if (!selectedId || !polygons[selectedId]) return;
+  document.getElementById('info-details').textContent =
+    `${polygons[selectedId].getLatLngs()[0].length} vertices · Drag vertices to edit`;
+}
+
+// ─── Draw mode ───
+function toggleDraw() {
+  drawMode = !drawMode;
+  document.getElementById('btn-draw').classList.toggle('active', drawMode);
+
+  if (drawMode) {
+    if (!selectedId) { alert('Select a neighborhood first!'); drawMode = false; document.getElementById('btn-draw').classList.remove('active'); return; }
+    drawPoints = [];
+    drawMarkers = [];
+    map.getContainer().style.cursor = 'crosshair';
+    map.on('click', onDrawClick);
+    document.getElementById('info-hint').textContent = 'Click points on the map to create boundary. Double-click to finish.';
+    map.on('dblclick', finishDraw);
+  } else {
+    cancelDraw();
+  }
+}
+
+function onDrawClick(e) {
+  if (!drawMode) return;
+  drawPoints.push(e.latlng);
+
+  const m = L.circleMarker(e.latlng, {
+    radius: 5, color: '#4ade80', fillColor: '#fff', fillOpacity: 1, weight: 2
+  }).addTo(map);
+  drawMarkers.push(m);
+
+  if (drawPolyline) map.removeLayer(drawPolyline);
+  if (drawPoints.length > 1) {
+    drawPolyline = L.polyline(drawPoints, { color: '#4ade80', weight: 2, dashArray: '5,5' }).addTo(map);
+  }
+}
+
+function finishDraw(e) {
+  if (!drawMode || drawPoints.length < 3) return;
+  L.DomEvent.stopPropagation(e);
+  L.DomEvent.preventDefault(e);
+
+  // Remove draw helpers
+  drawMarkers.forEach(m => map.removeLayer(m));
+  if (drawPolyline) map.removeLayer(drawPolyline);
+
+  // Remove existing polygon if any
+  if (polygons[selectedId]) {
+    disableEditing(selectedId);
+    map.removeLayer(polygons[selectedId]);
+  }
+
+  // Create new polygon
+  const hood = HOODS.find(h => h.id === selectedId);
+  const color = getColor(hood?.parent);
+  const poly = L.polygon(drawPoints, {
+    color: '#FFD700', weight: 3, fillColor: color, fillOpacity: 0.35
+  }).addTo(map);
+
+  poly.on('click', () => selectHood(selectedId));
+  poly.bindTooltip(hood.name, { sticky: true });
+  polygons[selectedId] = poly;
+  enableEditing(selectedId);
+
+  // Cleanup
+  drawMode = false;
+  drawPoints = [];
+  drawMarkers = [];
+  drawPolyline = null;
+  map.getContainer().style.cursor = '';
+  map.off('click', onDrawClick);
+  map.off('dblclick', finishDraw);
+  document.getElementById('btn-draw').classList.remove('active');
+  updateInfoPanel();
+  renderList();
+}
+
+function cancelDraw() {
+  drawMarkers.forEach(m => map.removeLayer(m));
+  if (drawPolyline) map.removeLayer(drawPolyline);
+  drawPoints = [];
+  drawMarkers = [];
+  drawPolyline = null;
+  map.getContainer().style.cursor = '';
+  map.off('click', onDrawClick);
+  map.off('dblclick', finishDraw);
+}
+
+// ─── Delete polygon ───
+function deleteSelected() {
+  if (!selectedId || !polygons[selectedId]) return;
+  if (!confirm(`Delete polygon for "${HOODS.find(h => h.id === selectedId)?.name}"?`)) return;
+  disableEditing(selectedId);
+  map.removeLayer(polygons[selectedId]);
+  delete polygons[selectedId];
+  updateInfoPanel();
+  renderList();
+}
+
+// ─── Reset view ───
+function resetView() { map.setView([40.758, -73.985], 13); }
+
+// ─── Export ───
+function exportAll() {
+  const lines = ['const LOCALITY_BOUNDARIES = {'];
+
+  Object.entries(polygons).sort(([a],[b]) => a.localeCompare(b)).forEach(([id, poly]) => {
+    const hood = HOODS.find(h => h.id === id);
+    if (!hood) return;
+    const latlngs = poly.getLatLngs()[0];
+    const center = poly.getBounds().getCenter();
+
+    lines.push(`  "${hood.name}": {`);
+    lines.push(`    borough: "manhattan",`);
+    lines.push(`    center: [${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}],`);
+    const pts = latlngs.map(ll => `[${ll.lat.toFixed(5)},${ll.lng.toFixed(5)}]`).join(',');
+    lines.push(`    polygon: [${pts}]`);
+    lines.push(`  },`);
+  });
+
+  lines.push('};');
+
+  document.getElementById('export-textarea').value = lines.join('\n');
+  document.getElementById('export-modal').classList.add('active');
+}
+
+function copyExport() {
+  exportAll();
+  copyExportText();
+}
+
+function copyExportText() {
+  const ta = document.getElementById('export-textarea');
+  ta.select();
+  document.execCommand('copy');
+  alert('Copied to clipboard!');
+}
+
+// ─── Init ───
+loadExisting();
+renderList();
+// Add center markers for neighborhoods without polygons
+HOODS.forEach(hood => {
+  if (!polygons[hood.id]) {
+    L.circleMarker(hood.center, {
+      radius: 4, color: '#FF1493', fillColor: '#FF1493', fillOpacity: 0.7, weight: 1
+    }).addTo(map).bindTooltip(hood.name + ' (no boundary)', { direction: 'top' });
+  }
+});
+</script>
+</body>
+</html>
