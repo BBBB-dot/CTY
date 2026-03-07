@@ -28,9 +28,9 @@
   background: #0A0A0A;
 }
 
-/* Leaflet tile pane — subtle so neighborhood fills pop */
+/* Leaflet tile pane — visible enough to see streets & labels */
 #hood-map-container .leaflet-tile-pane {
-  opacity: 0.75;
+  opacity: 0.85;
 }
 
 /* Hide Leaflet attribution for clean look */
@@ -55,8 +55,6 @@
   flex-direction: column;
   gap: 4px;
   z-index: 10;
-  /* Counter-rotate so buttons stay upright */
-  transform: rotate(-29deg);
 }
 
 .zoom-btn {
@@ -529,7 +527,7 @@
 .hd-spot-check {
   width: 18px;
   height: 18px;
-  accent-color: #FF1493;
+  accent-color: #E8A838;
   cursor: pointer;
   flex-shrink: 0;
 }

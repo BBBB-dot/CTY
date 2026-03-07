@@ -1,11 +1,11 @@
 // App Core Logic
 
 const BOROUGH_COLORS = {
-  manhattan: '#FF1493',
-  brooklyn: '#00D9FF',
-  queens: '#39FF14',
-  bronx: '#BC13FE',
-  staten_island: '#FF8C42'
+  manhattan: '#E8A838',
+  brooklyn: '#3AAFA9',
+  queens: '#E07855',
+  bronx: '#8B7FD4',
+  staten_island: '#7DAF6B'
 };
 
 const BOROUGH_NAMES = {
@@ -109,7 +109,7 @@ function getBoroughName(id) {
 
 // Get borough color
 function getBoroughColor(id) {
-  return BOROUGH_COLORS[id] || '#FF1493';
+  return BOROUGH_COLORS[id] || '#E8A838';
 }
 
 // Get parent CTY ID for an NTA code (for spot lookup)

@@ -121,11 +121,6 @@ const SUB_TO_LOCALITY = {
   'MN-SpanishHarlem': 'East Harlem',
 };
 
-// ─── Map rotation constant (degrees) ────────────────────────────
-// Rotates so Manhattan's grid runs vertically, matching the classic
-// NYC map orientation (~29° east of true north).
-const MAP_ROTATION_DEG = 29;
-
 // ─── Load GeoJSON + render Leaflet map ──────────────────────────
 function initHoodMap() {
   if (hoodMapReady) return;
@@ -139,17 +134,7 @@ function initHoodMap() {
     container.style.height = Math.round(w * 0.85) + 'px';
   }
 
-  // Apply CSS rotation to the map container so Manhattan is vertical.
-  // We use "dark_nolabels" tiles so rotated text isn't an issue.
-  container.style.transform = `rotate(${MAP_ROTATION_DEG}deg)`;
-  container.style.transformOrigin = 'center center';
-  // Expand slightly to cover corners exposed by rotation
-  container.style.width = '115%';
-  container.style.marginLeft = '-7.5%';
-  container.style.height = '115%';
-  container.style.marginTop = '-7.5%';
-
-  // Create Leaflet map
+  // Create Leaflet map — natural orientation, no rotation
   hoodMap = L.map('hood-map-container', {
     zoomControl: false,
     attributionControl: false,
@@ -157,8 +142,8 @@ function initHoodMap() {
     maxZoom: 18,
   }).setView([40.758, -73.985], 12);
 
-  // CartoDB Dark Matter (no labels) — streets visible, no rotated text
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  // CartoDB Dark Matter WITH labels — street names = city life
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     subdomains: 'abcd',
   }).addTo(hoodMap);
@@ -250,10 +235,10 @@ function renderLeafletMap(geo) {
     const latlngs = geoJSONToLatLngs(centralParkFeature.geometry);
     if (latlngs) {
       centralParkLayer = L.polygon(latlngs, {
-        color: 'rgba(100,200,100,0.3)',
-        weight: 0.8,
-        fillColor: '#1a4d2e',
-        fillOpacity: 0.6,
+        color: 'rgba(125,175,107,0.4)',
+        weight: 1,
+        fillColor: '#2d5a3a',
+        fillOpacity: 0.55,
       }).addTo(hoodMap);
       centralParkLayer.on('click', function() { openHoodDetail('MN-CentralPark'); });
       centralParkLayer.on('mouseover', function(e) { showHoodTooltipLeaflet(e, 'MN-CentralPark'); });
@@ -454,11 +439,11 @@ function hideHoodTooltip() {
 // ─── Style constants ────────────────────────────────────────────
 // Consistent opacity levels across all neighborhoods
 const STYLE = {
-  unvisited:  { fillOpacity: 0.18, color: 'rgba(255,255,255,0.05)', weight: 0.5 },
-  overlapped: { fillOpacity: 0.10, color: 'rgba(255,255,255,0.03)', weight: 0.3 },
-  visited:    { fillOpacity: 0.40, color: 'rgba(255,255,255,0.15)', weight: 0.8 },
-  lived:      { fillOpacity: 0.60, color: 'rgba(255,255,255,0.25)', weight: 1.0 },
-  hover:      { fillOpacity: 0.35, color: 'rgba(255,255,255,0.25)', weight: 1.0 },
+  unvisited:  { fillOpacity: 0.22, color: 'rgba(255,255,255,0.06)', weight: 0.5 },
+  overlapped: { fillOpacity: 0.12, color: 'rgba(255,255,255,0.04)', weight: 0.3 },
+  visited:    { fillOpacity: 0.45, color: 'rgba(255,255,255,0.18)', weight: 0.8 },
+  lived:      { fillOpacity: 0.60, color: 'rgba(255,255,255,0.28)', weight: 1.0 },
+  hover:      { fillOpacity: 0.38, color: 'rgba(255,255,255,0.30)', weight: 1.2 },
 };
 
 // ─── Refresh map colors based on visited/lived status ───────────

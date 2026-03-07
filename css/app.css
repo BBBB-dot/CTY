@@ -15,12 +15,12 @@
   --text-2: #A0A0A0;
   --text-3: #666;
 
-  /* Neon borough accents */
-  --neon-manhattan: #FF1493;
-  --neon-brooklyn: #00D9FF;
-  --neon-queens: #39FF14;
-  --neon-bronx: #BC13FE;
-  --neon-staten: #FF8C42;
+  /* Warm borough accents */
+  --neon-manhattan: #E8A838;
+  --neon-brooklyn: #3AAFA9;
+  --neon-queens: #E07855;
+  --neon-bronx: #8B7FD4;
+  --neon-staten: #7DAF6B;
 
   /* Layout */
   --radius: 12px;

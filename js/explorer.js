@@ -63,7 +63,7 @@ function addMarkerToMap(type, item) {
   el.dataset.visited = visited;
 
   // Determine color
-  let color = type === 'restaurant' ? '#FF1493' : '#00D9FF';
+  let color = type === 'restaurant' ? '#E8A838' : '#3AAFA9';
   if (item.borough) {
     color = getBoroughColor(item.borough);
   }
