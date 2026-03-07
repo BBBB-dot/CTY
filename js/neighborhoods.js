@@ -217,16 +217,16 @@ function renderOSMStreets(streetGeoJSON, pathFn, group) {
     .style('fill', 'none')
     .style('stroke', d => {
       const hw = d.properties.highway;
-      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.10)';
-      if (hw === 'primary') return 'rgba(255,255,255,0.08)';
-      if (hw === 'secondary') return 'rgba(255,255,255,0.06)';
-      return 'rgba(255,255,255,0.04)';
+      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.30)';
+      if (hw === 'primary') return 'rgba(255,255,255,0.22)';
+      if (hw === 'secondary') return 'rgba(255,255,255,0.16)';
+      return 'rgba(255,255,255,0.10)';
     })
     .style('stroke-width', d => {
       const hw = d.properties.highway;
-      if (hw === 'motorway' || hw === 'trunk') return 0.6;
-      if (hw === 'primary') return 0.45;
-      if (hw === 'secondary' || hw === 'tertiary') return 0.3;
+      if (hw === 'motorway' || hw === 'trunk') return 0.8;
+      if (hw === 'primary') return 0.55;
+      if (hw === 'secondary' || hw === 'tertiary') return 0.35;
       return 0.2;
     })
     .style('pointer-events', 'none');
@@ -563,8 +563,8 @@ function initHoodMap() {
       .attr('class', d => 'street-line street-' + d.properties.type)
       .attr('d', hoodPath)
       .style('fill', 'none')
-      .style('stroke', d => d.properties.type === 'avenue' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)')
-      .style('stroke-width', d => d.properties.type === 'avenue' ? 0.4 : 0.25)
+      .style('stroke', d => d.properties.type === 'avenue' ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.10)')
+      .style('stroke-width', d => d.properties.type === 'avenue' ? 0.5 : 0.25)
       .style('pointer-events', 'none');
 
     // Fetch real OSM streets in the background and replace the fallback
@@ -1032,8 +1032,8 @@ function refreshMapColors() {
     const hasSubs = getSubsForNTA(code).length > 0;
 
     if (hasSubs) {
-      // Base NTA path is just the outer boundary — very dim
-      el.style('fill', fill).style('fill-opacity', 0.03)
+      // Base NTA path fills gaps between sub-neighborhood polygons
+      el.style('fill', fill).style('fill-opacity', 0.12)
         .style('stroke', 'rgba(255,255,255,0.15)').style('stroke-width', 0.8);
     } else {
       const status = getNeighborhoodStatus(code);
@@ -1095,9 +1095,9 @@ function refreshMapColors() {
       entry.el.style('fill', subFill).style('fill-opacity', 0.5)
         .style('stroke', 'rgba(255,255,255,0.3)').style('stroke-width', 0.8);
     } else if (entry.el.classed('sub-path-overlapped')) {
-      // Large overlapping polygon — dim by default, reveal on hover
-      entry.el.style('fill', subFill).style('fill-opacity', 0.04)
-        .style('stroke', 'rgba(255,255,255,0.06)').style('stroke-width', 0.5);
+      // Lower-priority overlapping polygon — dimmed but still visible
+      entry.el.style('fill', subFill).style('fill-opacity', 0.12)
+        .style('stroke', 'rgba(255,255,255,0.12)').style('stroke-width', 0.5);
     } else {
       entry.el.style('fill', subFill).style('fill-opacity', 0.22)
         .style('stroke', 'rgba(255,255,255,0.25)').style('stroke-width', 1.0);
