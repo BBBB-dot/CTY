@@ -51,9 +51,15 @@
   pointer-events: none;
 }
 
-/* Sub-neighborhood markers (visible on zoom) */
-.sub-marker {
-  transition: opacity 0.3s;
+/* Sub-neighborhood Voronoi cells */
+.sub-path {
+  transition: fill-opacity 0.2s, stroke 0.2s;
+}
+
+.sub-path:hover {
+  fill-opacity: 0.7 !important;
+  stroke: rgba(255,255,255,0.6) !important;
+  stroke-width: 1.2 !important;
 }
 
 .sub-label {
