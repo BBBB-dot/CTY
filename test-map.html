@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><script src="https://d3js.org/d3.v7.min.js"></script></head>
+<body style="background:#0a0a0a">
+<div id="map" style="width:600px;height:400px"></div>
+<script>
+d3.json("data/nyc-neighborhoods.json").then(function(geo) {
+  console.log("Loaded features:", geo.features.length);
+  var svg = d3.select("#map").append("svg").attr("width",600).attr("height",400).style("background","#1a1a1a");
+  var proj = d3.geoMercator().fitSize([580,380], geo);
+  var path = d3.geoPath().projection(proj);
+  svg.selectAll("path").data(geo.features).enter().append("path").attr("d", path)
+    .style("fill","rgba(255,255,255,0.1)").style("stroke","rgba(255,255,255,0.3)");
+  console.log("Rendered paths");
+}).catch(function(e) { console.error("Error:", e); });
+</script>
+</body></html>

@@ -23,7 +23,8 @@ function initHoodMap() {
     .attr('viewBox', `0 0 ${w} ${h}`)
     .attr('preserveAspectRatio', 'xMidYMid meet')
     .style('width', '100%')
-    .style('height', 'auto');
+    .style('height', 'auto')
+    .style('background', 'transparent');
 
   // Load GeoJSON
   d3.json('data/nyc-neighborhoods.json').then(function(geo) {
@@ -70,8 +71,8 @@ function initHoodMap() {
     refreshMapColors();
     hoodMapReady = true;
   }).catch(function(err) {
-    console.warn('GeoJSON load error:', err);
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4)">Map data could not be loaded</div>';
+    console.error('GeoJSON load error:', err);
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4)">Map data could not be loaded. Check console for details.</div>';
   });
 }
 

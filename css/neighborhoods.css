@@ -21,10 +21,12 @@
   min-height: 400px;
   border-radius: 12px;
   overflow: hidden;
+  background: #0A0A0A;
 }
 
 #hood-map-container svg {
   display: block;
+  background: transparent;
 }
 
 .hood-path {
