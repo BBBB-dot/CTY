@@ -222,15 +222,23 @@ function updateNavAuthUI() {
   }
 }
 
-// Sync visited neighborhood to Supabase
-async function syncVisitedNeighborhood(hoodId, visited) {
+// Sync neighborhood status to Supabase (status: false, 'visited', or 'lived')
+async function syncNeighborhoodStatus(hoodId, status) {
   if (!currentUser) {
-    D.neighborhoods[hoodId] = visited;
+    if (status) {
+      D.neighborhoods[hoodId] = status;
+    } else {
+      delete D.neighborhoods[hoodId];
+    }
     localStorage.setItem('cty_offline_data', JSON.stringify(D));
     return;
   }
 
-  D.neighborhoods[hoodId] = visited;
+  if (status) {
+    D.neighborhoods[hoodId] = status;
+  } else {
+    delete D.neighborhoods[hoodId];
+  }
   const key = 'cty_user_' + currentUserId;
   localStorage.setItem(key, JSON.stringify(D));
 
@@ -238,11 +246,16 @@ async function syncVisitedNeighborhood(hoodId, visited) {
     await supabase.from('cty_visited_neighborhoods').upsert({
       user_id: currentUserId,
       neighborhood_id: hoodId,
-      visited: visited
+      status: status || null
     });
   } catch (e) {
     console.warn('Sync error:', e);
   }
+}
+
+// Legacy wrapper
+async function syncVisitedNeighborhood(hoodId, visited) {
+  syncNeighborhoodStatus(hoodId, visited ? 'visited' : false);
 }
 
 // Sync visited restaurant to Supabase
@@ -337,9 +350,18 @@ function isAttractionVisited(id) {
   return D.attractions && D.attractions[id] === true;
 }
 
-// Check if neighborhood is visited
+// Check if neighborhood is visited (any status)
 function isNeighborhoodVisited(id) {
-  return D.neighborhoods && D.neighborhoods[id] === true;
+  return D.neighborhoods && (D.neighborhoods[id] === true || D.neighborhoods[id] === 'visited' || D.neighborhoods[id] === 'lived');
+}
+
+// Get neighborhood status: false, 'visited', or 'lived'
+function getNeighborhoodStatus(id) {
+  if (!D.neighborhoods) return false;
+  const val = D.neighborhoods[id];
+  if (val === true || val === 'visited') return 'visited';
+  if (val === 'lived') return 'lived';
+  return false;
 }
 
 // Check if item is favorite

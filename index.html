@@ -85,6 +85,17 @@
       </div>
     </div>
 
+    <!-- D3 Interactive Map -->
+    <div class="hood-map-wrap">
+      <div class="hood-map-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.15)"></span>Unvisited</span>
+        <span class="legend-item"><span class="legend-dot visited-dot"></span>Visited</span>
+        <span class="legend-item"><span class="legend-dot lived-dot"></span>Lived</span>
+      </div>
+      <div id="hood-map-container"></div>
+    </div>
+
+    <!-- Borough Filter + Cards Grid -->
     <div class="borough-filter">
       <button class="filter-btn active" data-borough="all" onclick="filterBorough('all',this)">All</button>
       <button class="filter-btn manhattan" data-borough="manhattan" onclick="filterBorough('manhattan',this)">Manhattan</button>
@@ -98,23 +109,40 @@
   </div>
 </div>
 
-<!-- NEIGHBORHOOD DRAWER -->
-<div class="hood-drawer" id="hood-drawer">
-  <div class="hd-handle"></div>
+<!-- NEIGHBORHOOD DETAIL POPUP -->
+<div class="hood-detail-overlay" id="hood-detail-overlay"></div>
+<div class="hood-detail" id="hood-detail">
+  <div class="hd-accent" id="hd-accent"></div>
   <div class="hd-inner">
     <div class="hd-head">
       <div>
         <div class="hd-name" id="hd-name"></div>
         <div class="hd-borough" id="hd-borough"></div>
       </div>
-      <button class="hd-close" onclick="closeHoodDrawer()">×</button>
+      <button class="hd-close" onclick="closeHoodDetail()">×</button>
     </div>
     <div class="hd-desc" id="hd-desc"></div>
     <div class="hd-tags" id="hd-tags"></div>
+
+    <!-- Status buttons: Visited / Lived -->
+    <div class="hd-status-btns">
+      <button class="hd-status-btn" id="hd-visited-btn" onclick="toggleHoodVisited()">Mark Visited</button>
+      <button class="hd-status-btn" id="hd-lived-btn" onclick="toggleHoodLived()">Lived Here</button>
+    </div>
+
+    <!-- Mini Map -->
+    <div class="hd-minimap-wrap">
+      <div class="hd-section-label">Neighborhood Map</div>
+      <div id="hd-minimap"></div>
+    </div>
+
+    <!-- Progress -->
     <div class="hd-progress">
       <div class="hd-progress-text" id="hd-progress-text">0/0 spots collected</div>
       <div class="bar-track"><div class="bar-fill" id="hd-progress-bar"></div></div>
     </div>
+
+    <!-- Spots -->
     <div class="hd-section-label">Restaurants</div>
     <div class="hd-spots-list" id="hd-restaurants"></div>
     <div class="hd-section-label">Attractions</div>

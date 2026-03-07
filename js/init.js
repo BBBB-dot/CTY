@@ -2,7 +2,13 @@
 
 document.addEventListener('DOMContentLoaded', function() {
   try {
+    // Initialize D3 neighborhood map
+    initHoodMap();
+
+    // Render neighborhood cards
     renderNeighborhoods();
+
+    // Update stats
     updateHoodStats();
     updateNavStats();
 
@@ -13,7 +19,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loader.style.opacity = '0';
         loader.style.pointerEvents = 'none';
       }
-    }, 500);
+    }, 800);
   } catch(e) {
     console.warn('Init error:', e);
   }

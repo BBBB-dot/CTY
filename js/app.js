@@ -32,6 +32,11 @@ function switchTab(tab, btn) {
   if (tab === 'explorer' && !window.explorerMapInitialized) {
     setTimeout(() => initExplorerMap(), 100);
   }
+
+  // Re-init hood map if switching back (SVG might need resize)
+  if (tab === 'neighborhoods' && !hoodMapReady) {
+    setTimeout(() => initHoodMap(), 100);
+  }
 }
 
 // Update navigation stats
@@ -55,13 +60,19 @@ function updateHoodStats() {
   const attractionVisited = ATTRACTIONS.filter(a => isAttractionVisited(a.id)).length;
   const totalSpots = restaurantVisited + attractionVisited;
 
-  document.getElementById('hoods-count').textContent = hoodVisited;
-  document.getElementById('hoods-total').textContent = hoods;
-  document.getElementById('hoods-pct').textContent = Math.round((hoodVisited / hoods) * 100) + '%';
-  document.getElementById('spots-collected').textContent = totalSpots;
+  const hoodsCountEl = document.getElementById('hoods-count');
+  const hoodsTotalEl = document.getElementById('hoods-total');
+  const hoodsPctEl = document.getElementById('hoods-pct');
+  const spotsEl = document.getElementById('spots-collected');
+  const barEl = document.getElementById('hoods-bar');
+
+  if (hoodsCountEl) hoodsCountEl.textContent = hoodVisited;
+  if (hoodsTotalEl) hoodsTotalEl.textContent = hoods;
+  if (hoodsPctEl) hoodsPctEl.textContent = Math.round((hoodVisited / hoods) * 100) + '%';
+  if (spotsEl) spotsEl.textContent = totalSpots;
 
   const barPct = (hoodVisited / hoods) * 100;
-  document.getElementById('hoods-bar').style.width = barPct + '%';
+  if (barEl) barEl.style.width = barPct + '%';
 }
 
 // Show toast notification
@@ -204,7 +215,7 @@ function closeAllDrawers() {
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
-    closeHoodDrawer();
+    closeHoodDetail();
     closeAuth();
     closeExplorerPopup();
   }
