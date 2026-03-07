@@ -150,8 +150,8 @@ function initHoodMap() {
 
       // Scale NTA labels — fade out as sub-labels take over
       mapGroup.selectAll('.hood-label')
-        .style('font-size', Math.max(3, 6 / k) + 'px')
-        .style('opacity', k > 3 ? 0 : 0.45);
+        .style('font-size', Math.max(2.5, 5 / k) + 'px')
+        .style('opacity', k > 3.5 ? 0 : Math.min(0.5, 0.5 / Math.max(1, k * 0.5)));
 
       // Scale strokes
       mapGroup.selectAll('.nta-path')
@@ -159,14 +159,14 @@ function initHoodMap() {
       mapGroup.selectAll('.bg-path')
         .style('stroke-width', 0.3 / k);
 
-      // Sub-neighborhood Voronoi cells — always visible, adjust stroke
+      // Sub-neighborhood cells — adjust stroke with zoom
       mapGroup.selectAll('.sub-path')
-        .style('stroke-width', Math.max(0.3, 0.8 / k));
+        .style('stroke-width', Math.max(0.2, 0.6 / k));
 
-      // Sub labels — appear when zoomed in
+      // Sub labels — appear when zoomed in past NTA level
       mapGroup.selectAll('.sub-label')
-        .style('opacity', k > 2 ? Math.min(0.9, (k - 2) * 0.3) : 0)
-        .style('font-size', Math.max(2.5, 5.5 / k) + 'px');
+        .style('opacity', k > 2.5 ? Math.min(0.95, (k - 2.5) * 0.4) : 0)
+        .style('font-size', Math.max(2, 4.5 / k) + 'px');
 
       // Borough labels
       mapGroup.selectAll('.borough-label')
@@ -194,7 +194,10 @@ function initHoodMap() {
         ]]}
       }]
     };
-    hoodProjection = d3.geoMercator().fitSize([mapW - 20, mapH - 20], focusBbox);
+    // Rotate ~29° so Manhattan's spine is vertical
+    hoodProjection = d3.geoMercator()
+      .rotate([74.006, -40.71, 29])
+      .fitSize([mapW - 20, mapH - 20], focusBbox);
     hoodPath = d3.geoPath().projection(hoodProjection);
 
     const ntaPaths = [];
