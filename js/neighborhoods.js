@@ -354,59 +354,120 @@ function initHoodMap() {
       })
       .on('mouseleave', hideHoodTooltip);
 
-    // ─── Sub-neighborhood Voronoi cells ────
-    // For each NTA with subs, generate Voronoi cells from sub center points
-    // and clip them to the NTA boundary using SVG <clipPath> (which handles
-    // MultiPolygon correctly via D3's geoPath — no manual polygon clipping).
+    // ─── Sub-neighborhood rendering ────
+    // Uses real neighborhood polygons from locality.nyc (LOCALITY_BOUNDARIES)
+    // where available. Falls back to Voronoi for subs without polygon data.
+    // All sub-paths are SVG-clipped to their parent NTA boundary to prevent
+    // spilling into water or other boroughs.
+
+    // Map sub-neighborhood IDs to locality boundary names
+    const SUB_TO_LOCALITY = {
+      'MN-FiDi': 'Financial District', 'MN-BPC': 'Battery Park City',
+      'MN-Tribeca': 'TriBeCa', 'MN-CivCtr': 'Civic Center',
+      'MN-SoHo': 'SoHo', 'MN-LittleItaly': 'Little Italy',
+      'MN-HudsonSq': 'Hudson Square', 'MN-Nolita': 'NoLita',
+      'MN-GrnwchVlg': 'Greenwich Village', 'MN-NoHo': 'NoHo',
+      'MN-WestVlg': 'West Village', 'MN-Meatpacking': 'Meatpacking District',
+      'MN-Chinatown': 'Chinatown', 'MN-TwoBridges': 'Two Bridges',
+      'MN-LES': 'Lower East Side', 'MN-Bowery': 'Bowery',
+      'MN-EastVlg': 'East Village', 'MN-AlphaCity': 'Alphabet City',
+      'MN-Chelsea': 'Chelsea', 'MN-HudsonYards': 'Hudson Yards',
+      'MN-HellsK': "Hell's Kitchen", 'MN-GarmentDist': 'Garment District',
+      'MN-Flatiron': 'Flatiron District', 'MN-UnionSq': 'Union Square',
+      'MN-NoMad': 'NoMad', 'MN-Koreatown': 'Koreatown',
+      'MN-Midtown': 'Midtown Center', 'MN-TimesSq': 'Theater District',
+      'MN-DiamondDist': 'Diamond District',
+      'MN-StuyTown': 'Stuyvesant Town', 'MN-PeterCooper': 'Peter Cooper Village',
+      'MN-Gramercy': 'Gramercy Park', 'MN-RoseHill': 'Rose Hill',
+      'MN-MurrayHill': 'Murray Hill', 'MN-KipsBay': 'Kips Bay',
+      'MN-EastMidtown': 'Midtown East', 'MN-TurtleBay': 'Turtle Bay',
+      'MN-SuttonPl': 'Sutton Place', 'MN-TudorCity': 'Tudor City',
+      'MN-LincolnSq': 'Lincoln Square',
+      'MN-UWS': 'Upper West Side', 'MN-ManValley': 'Manhattan Valley',
+      'MN-LenoxHill': 'Lenox Hill', 'MN-UES': 'Upper East Side',
+      'MN-CarnegieHill': 'Carnegie Hill', 'MN-Yorkville': 'Yorkville',
+      'MN-MorningsideHts': 'Morningside Heights',
+      'MN-Manhattanville': 'Manhattanville',
+      'MN-HamiltonHts': 'Hamilton Heights', 'MN-SugarHill': 'Sugar Hill',
+      'MN-Harlem': 'Harlem',
+      // MN-SpanishHarlem and MN1101-N share the East Harlem NTA — use Voronoi fallback
+    };
+
+    // Convert a locality polygon [lat, lng] array to a GeoJSON feature
+    function localityToGeoJSON(polygon) {
+      // locality-boundaries uses [lat, lng]; GeoJSON needs [lng, lat]
+      const coords = polygon.map(p => [p[1], p[0]]);
+      // Close the ring if not already closed
+      if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
+        coords.push([...coords[0]]);
+      }
+      return {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'Polygon', coordinates: [coords] }
+      };
+    }
 
     const defs = hoodSvg.append('defs');
+    const hasLocality = typeof LOCALITY_BOUNDARIES !== 'undefined';
 
     ntaPaths.forEach(feature => {
       const ntaCode = feature.properties.ntaCode;
       const subs = getSubsForNTA(ntaCode);
       if (subs.length === 0) return;
 
-      // Create an SVG clipPath from the NTA boundary (handles MultiPolygon)
+      // Create an SVG clipPath from the NTA boundary
       const clipId = 'clip-' + ntaCode;
       defs.append('clipPath')
         .attr('id', clipId)
         .append('path')
         .attr('d', hoodPath(feature));
 
-      // Project sub-neighborhood center points
-      const subPoints = subs.map(sub => {
-        const p = hoodProjection([sub.center[1], sub.center[0]]);
-        return p && !isNaN(p[0]) ? { ...sub, point: p } : null;
-      }).filter(Boolean);
-      if (subPoints.length === 0) return;
-
       // Create a group clipped to the NTA boundary
       const subGroup = mapGroup.append('g')
         .attr('clip-path', `url(#${clipId})`);
 
-      // Single sub — just use the NTA boundary as its shape
-      if (subPoints.length === 1) {
-        const sub = subPoints[0];
-        const subFill = getNTAFill(sub.id, sub.borough, 0, 1);
+      // Separate subs with/without locality polygon data
+      const subsWithPoly = [];
+      const subsWithoutPoly = [];
+
+      subs.forEach(sub => {
+        const localityName = SUB_TO_LOCALITY[sub.id];
+        const localityData = hasLocality && localityName ? LOCALITY_BOUNDARIES[localityName] : null;
+        if (localityData && localityData.polygon) {
+          subsWithPoly.push({ ...sub, localityPoly: localityData.polygon, localityName });
+        } else {
+          subsWithoutPoly.push(sub);
+        }
+      });
+
+      // Render subs WITH real polygon data (from locality.nyc)
+      subsWithPoly.forEach((sub, i) => {
+        const geoFeature = localityToGeoJSON(sub.localityPoly);
+        const pathD = hoodPath(geoFeature);
+        if (!pathD) return;
+
+        const subFill = getNTAFill(sub.id, sub.borough, i, subsWithPoly.length + subsWithoutPoly.length);
         subGroup.append('path')
           .attr('class', 'sub-path')
-          .attr('d', hoodPath(feature))
+          .attr('d', pathD)
           .attr('data-sub-id', sub.id)
           .attr('data-nta', ntaCode)
           .style('fill', subFill)
           .style('fill-opacity', 0.22)
-          .style('stroke', 'rgba(255,255,255,0.12)')
-          .style('stroke-width', 0.4)
+          .style('stroke', 'rgba(255,255,255,0.15)')
+          .style('stroke-width', 0.5)
           .style('cursor', 'pointer')
           .on('click', function(event) {
             event.stopPropagation();
-            zoomToFeature(feature);
+            zoomToPoint(sub.center[0], sub.center[1], 10);
             openHoodDetail(sub.id);
           })
           .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
           .on('mouseleave', hideHoodTooltip);
 
-        const centroid = hoodPath.centroid(feature);
+        // Label at the locality center or polygon centroid
+        const centroid = hoodPath.centroid(geoFeature);
         if (centroid && !isNaN(centroid[0])) {
           mapGroup.append('text')
             .attr('class', 'sub-label')
@@ -418,56 +479,97 @@ function initHoodMap() {
             .style('pointer-events', 'none')
             .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
         }
-        return;
-      }
-
-      // Multiple subs — Voronoi tessellation, SVG-clipped to NTA boundary
-      const bounds = hoodPath.bounds(feature);
-      const bboxPad = 60;
-      const bbox = [
-        bounds[0][0] - bboxPad, bounds[0][1] - bboxPad,
-        bounds[1][0] + bboxPad, bounds[1][1] + bboxPad
-      ];
-
-      const delaunay = d3.Delaunay.from(subPoints, d => d.point[0], d => d.point[1]);
-      const voronoi = delaunay.voronoi(bbox);
-
-      subPoints.forEach((sub, i) => {
-        const cellPoly = voronoi.cellPolygon(i);
-        if (!cellPoly || cellPoly.length < 3) return;
-        const pathD = polygonToSVGPath(cellPoly);
-        if (!pathD) return;
-
-        const subFill = getNTAFill(sub.id, sub.borough, i, subPoints.length);
-        subGroup.append('path')
-          .attr('class', 'sub-path')
-          .attr('d', pathD)
-          .attr('data-sub-id', sub.id)
-          .attr('data-nta', ntaCode)
-          .style('fill', subFill)
-          .style('fill-opacity', 0.22)
-          .style('stroke', 'rgba(255,255,255,0.12)')
-          .style('stroke-width', 0.4)
-          .style('cursor', 'pointer')
-          .on('click', function(event) {
-            event.stopPropagation();
-            zoomToPoint(sub.center[0], sub.center[1], 10);
-            openHoodDetail(sub.id);
-          })
-          .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
-          .on('mouseleave', hideHoodTooltip);
-
-        // Label at the sub's projected center point
-        mapGroup.append('text')
-          .attr('class', 'sub-label')
-          .attr('x', sub.point[0]).attr('y', sub.point[1])
-          .text(sub.name)
-          .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
-          .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
-          .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
-          .style('pointer-events', 'none')
-          .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
       });
+
+      // Render subs WITHOUT polygon data using Voronoi fallback
+      if (subsWithoutPoly.length > 0) {
+        const subPoints = subsWithoutPoly.map(sub => {
+          const p = hoodProjection([sub.center[1], sub.center[0]]);
+          return p && !isNaN(p[0]) ? { ...sub, point: p } : null;
+        }).filter(Boolean);
+
+        if (subPoints.length === 1) {
+          // Single sub without polygon — use parent NTA shape
+          const sub = subPoints[0];
+          const subFill = getNTAFill(sub.id, sub.borough, subsWithPoly.length, subs.length);
+          subGroup.append('path')
+            .attr('class', 'sub-path')
+            .attr('d', hoodPath(feature))
+            .attr('data-sub-id', sub.id)
+            .attr('data-nta', ntaCode)
+            .style('fill', subFill)
+            .style('fill-opacity', 0.22)
+            .style('stroke', 'rgba(255,255,255,0.15)')
+            .style('stroke-width', 0.5)
+            .style('cursor', 'pointer')
+            .on('click', function(event) {
+              event.stopPropagation();
+              zoomToFeature(feature);
+              openHoodDetail(sub.id);
+            })
+            .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
+            .on('mouseleave', hideHoodTooltip);
+
+          const centroid = hoodPath.centroid(feature);
+          if (centroid && !isNaN(centroid[0])) {
+            mapGroup.append('text')
+              .attr('class', 'sub-label')
+              .attr('x', centroid[0]).attr('y', centroid[1])
+              .text(sub.name)
+              .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
+              .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
+              .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
+              .style('pointer-events', 'none')
+              .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
+          }
+        } else if (subPoints.length > 1) {
+          // Multiple subs without polygons — Voronoi fallback
+          const bounds = hoodPath.bounds(feature);
+          const bboxPad = 60;
+          const bbox = [
+            bounds[0][0] - bboxPad, bounds[0][1] - bboxPad,
+            bounds[1][0] + bboxPad, bounds[1][1] + bboxPad
+          ];
+          const delaunay = d3.Delaunay.from(subPoints, d => d.point[0], d => d.point[1]);
+          const voronoi = delaunay.voronoi(bbox);
+
+          subPoints.forEach((sub, i) => {
+            const cellPoly = voronoi.cellPolygon(i);
+            if (!cellPoly || cellPoly.length < 3) return;
+            const pathD = polygonToSVGPath(cellPoly);
+            if (!pathD) return;
+
+            const subFill = getNTAFill(sub.id, sub.borough, subsWithPoly.length + i, subs.length);
+            subGroup.append('path')
+              .attr('class', 'sub-path')
+              .attr('d', pathD)
+              .attr('data-sub-id', sub.id)
+              .attr('data-nta', ntaCode)
+              .style('fill', subFill)
+              .style('fill-opacity', 0.22)
+              .style('stroke', 'rgba(255,255,255,0.15)')
+              .style('stroke-width', 0.5)
+              .style('cursor', 'pointer')
+              .on('click', function(event) {
+                event.stopPropagation();
+                zoomToPoint(sub.center[0], sub.center[1], 10);
+                openHoodDetail(sub.id);
+              })
+              .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
+              .on('mouseleave', hideHoodTooltip);
+
+            mapGroup.append('text')
+              .attr('class', 'sub-label')
+              .attr('x', sub.point[0]).attr('y', sub.point[1])
+              .text(sub.name)
+              .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
+              .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
+              .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
+              .style('pointer-events', 'none')
+              .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
+          });
+        }
+      }
     });
 
     // NTA labels for NTAs WITHOUT subs (subs have their own labels)
