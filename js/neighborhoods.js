@@ -1,17 +1,17 @@
-// Neighborhoods Page — 233 Neighborhoods (NTA + Voronoi sub-neighborhoods) with Animated Zoom
+// Neighborhoods Page — Leaflet Tile Map with CartoDB Dark base
+// Replaces previous D3 SVG implementation with real street tiles
 
 let currentFilter = 'all';
 let currentSearch = '';
 let currentHoodId = null;
 let hoodGeoData = null;
-let hoodSvg = null;
-let hoodProjection = null;
-let hoodPath = null;
 let hoodMapReady = false;
-let hoodZoom = null;
-let mapGroup = null;
-let mapW = 0;
-let mapH = 0;
+
+// Leaflet map references
+let hoodMap = null;
+let hoodPolygonLayers = {};   // subId/ntaCode → L.polygon
+let hoodBgLayers = [];        // background NTA shapes
+let centralParkLayer = null;
 
 // ─── Borough color variation ────────────────────────────────────
 function getNTAFill(ntaCode, borough, index, total) {
@@ -69,904 +69,15 @@ function getSubsForNTA(ntaCode) {
   return NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === ntaCode);
 }
 
-// ─── Polygon clipping helpers (Sutherland-Hodgman) ──────────────
-function clipPolygon(subjectPolygon, clipPolygon) {
-  let output = subjectPolygon.slice();
-  if (output.length === 0) return output;
-
-  for (let i = 0; i < clipPolygon.length; i++) {
-    if (output.length === 0) return [];
-    const input = output;
-    output = [];
-    const edgeStart = clipPolygon[i];
-    const edgeEnd = clipPolygon[(i + 1) % clipPolygon.length];
-
-    for (let j = 0; j < input.length; j++) {
-      const current = input[j];
-      const previous = input[(j + input.length - 1) % input.length];
-      const currInside = isInside(current, edgeStart, edgeEnd);
-      const prevInside = isInside(previous, edgeStart, edgeEnd);
-
-      if (currInside) {
-        if (!prevInside) {
-          const inter = lineIntersect(previous, current, edgeStart, edgeEnd);
-          if (inter) output.push(inter);
-        }
-        output.push(current);
-      } else if (prevInside) {
-        const inter = lineIntersect(previous, current, edgeStart, edgeEnd);
-        if (inter) output.push(inter);
-      }
-    }
+// ─── Polygon area (shoelace) for lat/lng arrays ─────────────────
+function latlngPolyArea(coords) {
+  let area = 0;
+  for (let i = 0; i < coords.length; i++) {
+    const j = (i + 1) % coords.length;
+    area += coords[i][0] * coords[j][1];
+    area -= coords[j][0] * coords[i][1];
   }
-  return output;
-}
-
-function isInside(point, edgeStart, edgeEnd) {
-  return (edgeEnd[0] - edgeStart[0]) * (point[1] - edgeStart[1]) -
-         (edgeEnd[1] - edgeStart[1]) * (point[0] - edgeStart[0]) >= 0;
-}
-
-function lineIntersect(p1, p2, p3, p4) {
-  const x1 = p1[0], y1 = p1[1], x2 = p2[0], y2 = p2[1];
-  const x3 = p3[0], y3 = p3[1], x4 = p4[0], y4 = p4[1];
-  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-  if (Math.abs(denom) < 1e-10) return null;
-  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-  return [x1 + t * (x2 - x1), y1 + t * (y2 - y1)];
-}
-
-function polygonToSVGPath(pts) {
-  if (pts.length < 3) return '';
-  return 'M' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z';
-}
-
-// ─── Real OSM street fetcher ─────────────────────────────────
-// Fetches actual street geometry from OpenStreetMap Overpass API
-// and renders as SVG paths behind neighborhoods. Falls back to
-// the mathematical grid if the fetch fails.
-let osmStreetData = null;
-
-async function fetchOSMStreets() {
-  const cacheKey = 'cty-osm-streets-v1';
-  // Check sessionStorage cache first
-  try {
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      osmStreetData = JSON.parse(cached);
-      return osmStreetData;
-    }
-  } catch(e) { /* ignore cache errors */ }
-
-  const query = `[out:json][timeout:60];
-    way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified)$"]
-    (40.700,-74.025,40.882,-73.905);
-    out geom;`;
-
-  const endpoints = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  ];
-
-  for (const endpoint of endpoints) {
-    try {
-      const resp = await fetch(endpoint, {
-        method: 'POST',
-        body: 'data=' + encodeURIComponent(query),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      if (data.elements && data.elements.length > 0) {
-        // Convert to GeoJSON FeatureCollection
-        const features = [];
-        data.elements.forEach(el => {
-          if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
-          const coords = el.geometry.map(g => [g.lon, g.lat]);
-          const hwType = el.tags?.highway || 'residential';
-          features.push({
-            type: 'Feature',
-            properties: {
-              name: el.tags?.name || '',
-              highway: hwType,
-              type: (hwType === 'motorway' || hwType === 'trunk' || hwType === 'primary') ? 'avenue' : 'street',
-            },
-            geometry: { type: 'LineString', coordinates: coords }
-          });
-        });
-
-        osmStreetData = { type: 'FeatureCollection', features };
-
-        // Cache in sessionStorage
-        try { sessionStorage.setItem(cacheKey, JSON.stringify(osmStreetData)); }
-        catch(e) { /* storage full, skip cache */ }
-
-        return osmStreetData;
-      }
-    } catch(e) {
-      console.log('OSM fetch failed:', endpoint, e.message);
-      continue;
-    }
-  }
-
-  return null; // all endpoints failed
-}
-
-// Render real OSM streets onto the D3 SVG map
-// Streets render ON TOP of neighborhood fills so they're always visible
-// as the base grid. Neighborhood polygons are translucent overlays.
-function renderOSMStreets(streetGeoJSON, pathFn, group) {
-  if (!streetGeoJSON || !streetGeoJSON.features) return;
-
-  // Remove old mathematical grid if present
-  group.selectAll('.street-grid').remove();
-  group.selectAll('.street-line').remove();
-
-  // Insert AFTER sub-paths but BEFORE labels so streets overlay neighborhoods
-  // but labels stay on top of everything
-  const firstLabel = group.select('.sub-label, .hood-label, .borough-label').node();
-  const streetGroup = firstLabel
-    ? group.insert('g', function() { return firstLabel; }).attr('class', 'street-grid osm-streets')
-    : group.append('g').attr('class', 'street-grid osm-streets');
-
-  streetGroup.selectAll('.street-line')
-    .data(streetGeoJSON.features)
-    .enter()
-    .append('path')
-    .attr('class', d => 'street-line street-' + d.properties.type)
-    .attr('d', pathFn)
-    .style('fill', 'none')
-    .style('stroke', d => {
-      const hw = d.properties.highway;
-      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.7)';
-      if (hw === 'primary') return 'rgba(255,255,255,0.55)';
-      if (hw === 'secondary') return 'rgba(255,255,255,0.45)';
-      if (hw === 'tertiary') return 'rgba(255,255,255,0.35)';
-      return 'rgba(255,255,255,0.25)';
-    })
-    .style('stroke-width', d => {
-      const hw = d.properties.highway;
-      if (hw === 'motorway' || hw === 'trunk') return 1.5;
-      if (hw === 'primary') return 1.2;
-      if (hw === 'secondary') return 0.8;
-      if (hw === 'tertiary') return 0.6;
-      return 0.35;
-    })
-    .style('stroke-linecap', 'round')
-    .style('stroke-linejoin', 'round')
-    .style('pointer-events', 'none');
-}
-
-// ─── Mathematical street grid (fallback) ────────────────────
-// Generates approximate GeoJSON LineStrings for Manhattan's major
-// avenues and cross streets using a mathematical model of the grid.
-// Grid is tilted ~29° east of true north.
-function generateManhattanStreets() {
-  const features = [];
-  // Grid parameters
-  const gridAngle = 29 * Math.PI / 180; // 29° in radians
-  const cosA = Math.cos(gridAngle), sinA = Math.sin(gridAngle);
-  const latScale = 1 / 111.0; // degrees per km (latitude)
-  const lonScale = 1 / (111.0 * Math.cos(40.75 * Math.PI / 180)); // degrees per km (longitude)
-
-  // Grid-north unit vector (in degrees per km)
-  const gnLat = cosA * latScale;
-  const gnLon = sinA * lonScale;
-  // Grid-east unit vector (perpendicular, in degrees per km)
-  const geLat = -sinA * latScale;
-  const geLon = cosA * lonScale;
-
-  // Reference: 5th Ave & 34th St ≈ 40.7490, -73.9857
-  const refLat = 40.7490, refLon = -73.9857;
-  // 5th Ave is avenue index 0
-
-  // Avenue positions (grid-east offsets from 5th Ave in km)
-  // Negative = east, positive = west
-  const avenues = [
-    { name: '1st Ave', offset: -1.07 },
-    { name: '2nd Ave', offset: -0.84 },
-    { name: '3rd Ave', offset: -0.61 },
-    { name: 'Lexington', offset: -0.42 },
-    { name: 'Park Ave', offset: -0.27 },
-    { name: 'Madison', offset: -0.13 },
-    { name: '5th Ave', offset: 0 },
-    { name: '6th Ave', offset: 0.18 },
-    { name: 'Broadway', offset: 0.13 }, // diagonal, approximate
-    { name: '7th Ave', offset: 0.35 },
-    { name: '8th Ave', offset: 0.53 },
-    { name: '9th Ave', offset: 0.71 },
-    { name: '10th Ave', offset: 0.88 },
-    { name: '11th Ave', offset: 1.06 },
-    { name: 'West Side', offset: 1.22 },
-    { name: 'FDR', offset: -1.25 },
-  ];
-
-  // Grid-north range: from Houston (~-2.9 km) to 155th (~7.8 km) relative to 34th
-  const southKm = -2.9;
-  const northKm = 7.8;
-
-  // Generate avenue lines
-  avenues.forEach(ave => {
-    const startLat = refLat + southKm * gnLat + ave.offset * geLat;
-    const startLon = refLon + southKm * gnLon + ave.offset * geLon;
-    const endLat = refLat + northKm * gnLat + ave.offset * geLat;
-    const endLon = refLon + northKm * gnLon + ave.offset * geLon;
-
-    features.push({
-      type: 'Feature',
-      properties: { name: ave.name, type: 'avenue' },
-      geometry: {
-        type: 'LineString',
-        coordinates: [[startLon, startLat], [endLon, endLat]]
-      }
-    });
-  });
-
-  // Generate cross streets at major intervals
-  // Block spacing ~0.08 km. Major streets every 10 blocks.
-  // Houston = 0 (approx -2.9 km from 34th). Streets increase northward.
-  const majorStreets = [
-    { name: 'Houston', km: -2.9 },
-    { name: '14th', km: -1.78 },
-    { name: '23rd', km: -1.06 },
-    { name: '34th', km: 0 },
-    { name: '42nd', km: 0.64 },
-    { name: '50th', km: 1.28 },
-    { name: '57th', km: 1.84 },
-    { name: '66th', km: 2.56 },
-    { name: '72nd', km: 3.04 },
-    { name: '79th', km: 3.60 },
-    { name: '86th', km: 4.16 },
-    { name: '96th', km: 4.96 },
-    { name: '106th', km: 5.76 },
-    { name: '110th', km: 6.08 },
-    { name: '116th', km: 6.56 },
-    { name: '125th', km: 7.28 },
-    { name: '135th', km: 8.08 },
-    { name: '145th', km: 8.88 },
-    { name: '155th', km: 9.68 },
-  ];
-
-  // Cross street east-west extent varies (Manhattan narrows)
-  // At 34th: ~-1.3 km to +1.3 km from 5th Ave
-  majorStreets.forEach(st => {
-    // Narrower at top and bottom of Manhattan
-    const fraction = (st.km - southKm) / (northKm - southKm);
-    let westExtent = 1.30;
-    let eastExtent = -1.30;
-    // Manhattan narrows above 110th and below Houston
-    if (fraction > 0.75) {
-      const narrow = (fraction - 0.75) / 0.25;
-      westExtent = 1.30 * (1 - narrow * 0.35);
-      eastExtent = -1.30 * (1 - narrow * 0.25);
-    }
-    if (fraction < 0.1) {
-      westExtent = 0.90;
-      eastExtent = -0.80;
-    }
-
-    const startLat = refLat + st.km * gnLat + westExtent * geLat;
-    const startLon = refLon + st.km * gnLon + westExtent * geLon;
-    const endLat = refLat + st.km * gnLat + eastExtent * geLat;
-    const endLon = refLon + st.km * gnLon + eastExtent * geLon;
-
-    features.push({
-      type: 'Feature',
-      properties: { name: st.name + ' St', type: 'street' },
-      geometry: {
-        type: 'LineString',
-        coordinates: [[startLon, startLat], [endLon, endLat]]
-      }
-    });
-  });
-
-  return { type: 'FeatureCollection', features };
-}
-
-// ─── Polygon area (shoelace) for SVG path points ─────────────
-function svgPolyArea(pathEl) {
-  try {
-    const d = pathEl.getAttribute('d');
-    if (!d) return 0;
-    const pts = d.replace(/[MLZ]/g, ' ').trim().split(/\s+/).map(s => {
-      const [x, y] = s.split(',').map(Number);
-      return { x, y };
-    }).filter(p => !isNaN(p.x) && !isNaN(p.y));
-    let area = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const j = (i + 1) % pts.length;
-      area += pts[i].x * pts[j].y;
-      area -= pts[j].x * pts[i].y;
-    }
-    return Math.abs(area / 2);
-  } catch(e) { return 0; }
-}
-
-// ─── Load GeoJSON and render map ───────────────────────────────
-function initHoodMap() {
-  if (hoodMapReady) return;
-
-  const container = document.getElementById('hood-map-container');
-  if (!container) return;
-
-  mapW = container.clientWidth || 900;
-  mapH = Math.round(mapW * 0.85);
-
-  hoodSvg = d3.select('#hood-map-container')
-    .append('svg')
-    .attr('viewBox', `0 0 ${mapW} ${mapH}`)
-    .attr('preserveAspectRatio', 'xMidYMid meet')
-    .style('width', '100%')
-    .style('height', 'auto')
-    .style('background', 'transparent');
-
-  mapGroup = hoodSvg.append('g');
-
-  // Setup D3 zoom
-  hoodZoom = d3.zoom()
-    .scaleExtent([1, 20])
-    .on('zoom', function(event) {
-      mapGroup.attr('transform', event.transform);
-      const k = event.transform.k;
-
-      // Scale NTA labels (non-sub NTAs)
-      const hoodFontSize = Math.max(2, 4.5 / k);
-      mapGroup.selectAll('.hood-label')
-        .style('font-size', hoodFontSize + 'px');
-
-      // Scale strokes
-      mapGroup.selectAll('.nta-path:not(.park-path)')
-        .style('stroke-width', 0.5 / k);
-      mapGroup.selectAll('.park-path')
-        .style('stroke-width', 0.8 / k);
-      mapGroup.selectAll('.bg-path')
-        .style('stroke-width', 0.3 / k);
-
-      // Sub-neighborhood cell strokes
-      mapGroup.selectAll('.sub-path')
-        .style('stroke-width', Math.max(0.15, 0.4 / k));
-
-      // Street grid — scale with zoom, show more detail when zoomed in
-      mapGroup.selectAll('.street-line')
-        .style('stroke-width', d => {
-          if (!d || !d.properties) return 0.2 / k;
-          const hw = d.properties.highway;
-          let base;
-          if (hw === 'motorway' || hw === 'trunk') base = 0.6;
-          else if (hw === 'primary') base = 0.45;
-          else if (hw === 'secondary' || hw === 'tertiary') base = 0.3;
-          else if (d.properties.type === 'avenue') base = 0.4;
-          else base = 0.2;
-          return base / k;
-        })
-        .style('stroke-opacity', d => {
-          if (!d || !d.properties) return Math.min(1, 0.4 + (k - 1) * 0.15);
-          const hw = d.properties.highway;
-          // Residential streets only show when zoomed in enough
-          if (hw === 'residential' || hw === 'unclassified') {
-            return k > 3 ? Math.min(0.8, (k - 3) * 0.2) : 0;
-          }
-          return Math.min(1, 0.5 + (k - 1) * 0.15);
-        });
-
-      // All labels — collision detection to hide overlapping ones
-      const subFontSize = Math.max(1.5, 3 / k);
-      mapGroup.selectAll('.sub-label')
-        .style('font-size', subFontSize + 'px');
-
-      // Run collision detection on ALL labels (hood-label + sub-label)
-      const placed = [];
-      const padding = 1.5;
-      mapGroup.selectAll('.hood-label, .sub-label').each(function() {
-        const el = d3.select(this);
-        const x = +el.attr('x') * k + event.transform.x;
-        const y = +el.attr('y') * k + event.transform.y;
-        const fs = parseFloat(el.style('font-size')) || 3;
-        const textLen = el.text().length * fs * k * 0.36 + padding * 2;
-        const h = fs * k * 0.9 + padding * 2;
-        const box = { x: x - textLen / 2, y: y - h / 2, w: textLen, h: h };
-        const overlaps = placed.some(p =>
-          box.x < p.x + p.w && box.x + box.w > p.x &&
-          box.y < p.y + p.h && box.y + box.h > p.y
-        );
-        if (overlaps) {
-          el.style('opacity', 0);
-        } else {
-          el.style('opacity', 0.8);
-          placed.push(box);
-        }
-      });
-
-      // Borough labels
-      mapGroup.selectAll('.borough-label')
-        .style('font-size', Math.max(5, 14 / k) + 'px')
-        .style('fill-opacity', Math.max(0, 0.12 - (k - 1) * 0.03));
-    });
-
-  hoodSvg.call(hoodZoom);
-
-  hoodSvg.on('click', function(event) {
-    if (event.target === this || event.target.tagName === 'svg') {
-      resetMapZoom();
-    }
-  });
-
-  d3.json('data/nyc-neighborhoods.json').then(function(geo) {
-    hoodGeoData = geo;
-
-    const focusBbox = {
-      type: 'FeatureCollection',
-      features: [{
-        type: 'Feature', properties: {},
-        geometry: { type: 'Polygon', coordinates: [[
-          [-74.20, 40.50], [-74.20, 40.92], [-73.70, 40.92], [-73.70, 40.50], [-74.20, 40.50]
-        ]]}
-      }]
-    };
-    // Rotate ~29° so Manhattan's spine is vertical
-    hoodProjection = d3.geoMercator()
-      .rotate([74.006, -40.71, 29])
-      .fitSize([mapW - 20, mapH - 20], focusBbox);
-    hoodPath = d3.geoPath().projection(hoodProjection);
-
-    const ntaPaths = [];
-    const background = [];
-    let centralParkFeature = null;
-
-    geo.features.forEach(f => {
-      const code = NTA_NAME_TO_CODE[f.properties.name];
-      if (f.properties.name === 'Central Park') {
-        centralParkFeature = f;
-      } else if (f.properties.ntatype === '0' && code) {
-        f.properties.ntaCode = code;
-        ntaPaths.push(f);
-      } else {
-        background.push(f);
-      }
-    });
-
-    // Count NTAs per borough for color variation
-    const boroughCounts = {};
-    ntaPaths.forEach(f => {
-      const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
-      if (!boroughCounts[boro]) boroughCounts[boro] = 0;
-      boroughCounts[boro]++;
-    });
-    const boroughIdx = {};
-
-    // Track which NTAs have subs (to skip drawing them as solid fills)
-    const ntasWithSubs = {};
-    if (typeof SUB_TO_NTA !== 'undefined') {
-      Object.values(SUB_TO_NTA).forEach(ntaCode => { ntasWithSubs[ntaCode] = true; });
-    }
-
-    // Draw background
-    mapGroup.selectAll('.bg-path')
-      .data(background)
-      .enter()
-      .append('path')
-      .attr('class', 'bg-path')
-      .attr('d', hoodPath)
-      .style('fill', function(d) {
-        const t = d.properties.ntatype;
-        if (t === '5') return '#0c1a14';
-        if (t === '6' || t === '8') return '#080e12';
-        if (t === '7' || t === '9') return '#0a0a0e';
-        return '#131313';
-      })
-      .style('stroke', 'rgba(255,255,255,0.04)')
-      .style('stroke-width', 0.3);
-
-    // Draw Manhattan street grid — try real OSM data first, fall back to mathematical grid
-    // NOTE: fallback grid renders early (behind neighborhoods). OSM streets
-    // will replace it and render ON TOP of neighborhood fills when loaded.
-    const fallbackData = generateManhattanStreets();
-    const streetGroup = mapGroup.append('g').attr('class', 'street-grid');
-    streetGroup.selectAll('.street-line')
-      .data(fallbackData.features)
-      .enter()
-      .append('path')
-      .attr('class', d => 'street-line street-' + d.properties.type)
-      .attr('d', hoodPath)
-      .style('fill', 'none')
-      .style('stroke', d => d.properties.type === 'avenue' ? 'rgba(255,255,255,0.50)' : 'rgba(255,255,255,0.30)')
-      .style('stroke-width', d => d.properties.type === 'avenue' ? 1.0 : 0.5)
-      .style('stroke-linecap', 'round')
-      .style('pointer-events', 'none');
-
-    // Fetch real OSM streets in the background and replace the fallback
-    fetchOSMStreets().then(osmData => {
-      if (osmData) {
-        renderOSMStreets(osmData, hoodPath, mapGroup);
-        console.log('OSM streets loaded:', osmData.features.length, 'streets');
-      } else {
-        console.log('Using fallback mathematical street grid');
-      }
-    });
-
-    // Draw Central Park as a special green feature
-    if (centralParkFeature) {
-      mapGroup.append('path')
-        .attr('class', 'nta-path park-path')
-        .attr('d', hoodPath(centralParkFeature))
-        .attr('data-code', 'MN-CentralPark')
-        .attr('data-borough', 'manhattan')
-        .style('fill', '#1a4d2e')
-        .style('fill-opacity', 0.6)
-        .style('stroke', 'rgba(100,200,100,0.3)')
-        .style('stroke-width', 0.8)
-        .style('cursor', 'pointer')
-        .on('click', function(event) {
-          event.stopPropagation();
-          const bounds = hoodPath.bounds(centralParkFeature);
-          const dx = bounds[1][0] - bounds[0][0];
-          const dy = bounds[1][1] - bounds[0][1];
-          const cx = (bounds[0][0] + bounds[1][0]) / 2;
-          const cy = (bounds[0][1] + bounds[1][1]) / 2;
-          const scale = Math.min(8, 0.9 / Math.max(dx / mapW, dy / mapH));
-          const translate = [mapW / 2 - scale * cx, mapH / 2 - scale * cy];
-          hoodSvg.transition().duration(750)
-            .call(hoodZoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
-          openHoodDetail('MN-CentralPark');
-        })
-        .on('mouseenter', function(event) { showHoodTooltip(event, 'MN-CentralPark'); })
-        .on('mouseleave', hideHoodTooltip);
-
-      const parkCentroid = hoodPath.centroid(centralParkFeature);
-      if (parkCentroid && !isNaN(parkCentroid[0])) {
-        mapGroup.append('text')
-          .attr('class', 'sub-label')
-          .attr('x', parkCentroid[0])
-          .attr('y', parkCentroid[1])
-          .text('Central Park')
-          .style('font-size', '4px')
-          .style('fill', 'rgba(150,220,150,0.9)')
-          .style('font-family', 'Space Grotesk, sans-serif')
-          .style('font-weight', '600')
-          .style('text-anchor', 'middle')
-          .style('dominant-baseline', 'middle')
-          .style('pointer-events', 'none')
-          .style('opacity', 0)
-          .style('text-shadow', '0 0 4px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8)');
-      }
-    }
-
-    // Draw NTA paths (all of them for the base boundary)
-    mapGroup.selectAll('.nta-path')
-      .data(ntaPaths)
-      .enter()
-      .append('path')
-      .attr('class', 'nta-path')
-      .attr('d', hoodPath)
-      .attr('data-code', d => d.properties.ntaCode)
-      .attr('data-borough', d => d.properties.borough.toLowerCase().replace(/ /g, '_'))
-      .each(function(d) {
-        const boro = d.properties.borough.toLowerCase().replace(/ /g, '_');
-        if (!boroughIdx[boro]) boroughIdx[boro] = 0;
-        const idx = boroughIdx[boro]++;
-        const total = boroughCounts[boro];
-        d.properties._fill = getNTAFill(d.properties.ntaCode, boro, idx, total);
-        d.properties._boro = boro;
-      })
-      .on('click', function(event, d) {
-        event.stopPropagation();
-        // If this NTA has sub-hoods, just zoom — subs handle their own clicks
-        if (ntasWithSubs[d.properties.ntaCode]) {
-          zoomToFeature(d);
-        } else {
-          zoomToFeature(d);
-          openHoodDetail(d.properties.ntaCode);
-        }
-      })
-      .on('mouseenter', function(event, d) {
-        if (!ntasWithSubs[d.properties.ntaCode]) {
-          showHoodTooltip(event, d.properties.ntaCode);
-        }
-      })
-      .on('mouseleave', hideHoodTooltip);
-
-    // ─── Sub-neighborhood rendering ────
-    // Uses real neighborhood polygons from locality.nyc (LOCALITY_BOUNDARIES)
-    // where available. Falls back to Voronoi for subs without polygon data.
-    // All sub-paths are SVG-clipped to their parent NTA boundary to prevent
-    // spilling into water or other boroughs.
-
-    // Map sub-neighborhood IDs to locality boundary names
-    const SUB_TO_LOCALITY = {
-      'MN-FiDi': 'Financial District', 'MN-BPC': 'Battery Park City',
-      'MN-Tribeca': 'TriBeCa', 'MN-CivCtr': 'Civic Center',
-      'MN-SoHo': 'SoHo', 'MN-LittleItaly': 'Little Italy',
-      'MN-HudsonSq': 'Hudson Square', 'MN-Nolita': 'NoLita',
-      'MN-GrnwchVlg': 'Greenwich Village', 'MN-NoHo': 'NoHo',
-      'MN-WestVlg': 'West Village', 'MN-Meatpacking': 'Meatpacking District',
-      'MN-Chinatown': 'Chinatown', 'MN-TwoBridges': 'Two Bridges',
-      'MN-LES': 'Lower East Side', 'MN-Bowery': 'Bowery',
-      'MN-EastVlg': 'East Village', 'MN-AlphaCity': 'Alphabet City',
-      'MN-Chelsea': 'Chelsea', 'MN-HudsonYards': 'Hudson Yards',
-      'MN-HellsK': "Hell's Kitchen", 'MN-GarmentDist': 'Garment District',
-      'MN-Flatiron': 'Flatiron District', 'MN-UnionSq': 'Union Square',
-      'MN-NoMad': 'NoMad', 'MN-Koreatown': 'Koreatown',
-      'MN-Midtown': 'Midtown Center', 'MN-TimesSq': 'Theater District',
-      'MN-DiamondDist': 'Diamond District',
-      'MN-StuyTown': 'Stuyvesant Town', 'MN-PeterCooper': 'Peter Cooper Village',
-      'MN-Gramercy': 'Gramercy Park', 'MN-RoseHill': 'Rose Hill',
-      'MN-MurrayHill': 'Murray Hill', 'MN-KipsBay': 'Kips Bay',
-      'MN-EastMidtown': 'Midtown East', 'MN-TurtleBay': 'Turtle Bay',
-      'MN-SuttonPl': 'Sutton Place', 'MN-TudorCity': 'Tudor City',
-      'MN-LincolnSq': 'Lincoln Square',
-      'MN-UWS': 'Upper West Side', 'MN-ManValley': 'Manhattan Valley',
-      'MN-LenoxHill': 'Lenox Hill', 'MN-UES': 'Upper East Side',
-      'MN-CarnegieHill': 'Carnegie Hill', 'MN-Yorkville': 'Yorkville',
-      'MN-MorningsideHts': 'Morningside Heights',
-      'MN-Manhattanville': 'Manhattanville',
-      'MN-HamiltonHts': 'Hamilton Heights', 'MN-SugarHill': 'Sugar Hill',
-      'MN-Harlem': 'Harlem',
-      'MN-SpanishHarlem': 'East Harlem',
-    };
-
-    // Convert a locality polygon [lat, lng] array to a GeoJSON feature
-    function localityToGeoJSON(polygon) {
-      // locality-boundaries uses [lat, lng]; GeoJSON needs [lng, lat]
-      const coords = polygon.map(p => [p[1], p[0]]);
-      // Reverse winding order so D3 treats it as interior, not complement
-      coords.reverse();
-      // Close the ring if not already closed
-      if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
-        coords.push([...coords[0]]);
-      }
-      return {
-        type: 'Feature',
-        properties: {},
-        geometry: { type: 'Polygon', coordinates: [coords] }
-      };
-    }
-
-    const defs = hoodSvg.append('defs');
-    const hasLocality = typeof LOCALITY_BOUNDARIES !== 'undefined';
-
-    ntaPaths.forEach(feature => {
-      const ntaCode = feature.properties.ntaCode;
-      const subs = getSubsForNTA(ntaCode);
-      if (subs.length === 0) return;
-
-      // Create an SVG clipPath from the NTA boundary
-      const clipId = 'clip-' + ntaCode;
-      defs.append('clipPath')
-        .attr('id', clipId)
-        .append('path')
-        .attr('d', hoodPath(feature));
-
-      // Create a group clipped to the NTA boundary
-      const subGroup = mapGroup.append('g')
-        .attr('clip-path', `url(#${clipId})`);
-
-      // Separate subs with/without locality polygon data
-      const subsWithPoly = [];
-      const subsWithoutPoly = [];
-
-      subs.forEach(sub => {
-        const localityName = SUB_TO_LOCALITY[sub.id];
-        const localityData = hasLocality && localityName ? LOCALITY_BOUNDARIES[localityName] : null;
-        if (localityData && localityData.polygon) {
-          subsWithPoly.push({ ...sub, localityPoly: localityData.polygon, localityName });
-        } else {
-          subsWithoutPoly.push(sub);
-        }
-      });
-
-      // Render subs WITH real polygon data (from locality.nyc)
-      subsWithPoly.forEach((sub, i) => {
-        const geoFeature = localityToGeoJSON(sub.localityPoly);
-        const pathD = hoodPath(geoFeature);
-        if (!pathD) return;
-
-        const subFill = getNTAFill(sub.id, sub.borough, i, subsWithPoly.length + subsWithoutPoly.length);
-        subGroup.append('path')
-          .attr('class', 'sub-path')
-          .attr('d', pathD)
-          .attr('data-sub-id', sub.id)
-          .attr('data-nta', ntaCode)
-          .style('fill', subFill)
-          .style('fill-opacity', 0.45)
-          .style('stroke', 'none')
-          .style('cursor', 'pointer')
-          .on('click', function(event) {
-            event.stopPropagation();
-            zoomToPoint(sub.center[0], sub.center[1], 10);
-            openHoodDetail(sub.id);
-          })
-          .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
-          .on('mouseleave', hideHoodTooltip);
-
-        // Label at the locality center or polygon centroid
-        const centroid = hoodPath.centroid(geoFeature);
-        if (centroid && !isNaN(centroid[0])) {
-          mapGroup.append('text')
-            .attr('class', 'sub-label')
-            .attr('x', centroid[0]).attr('y', centroid[1])
-            .text(sub.name)
-            .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
-            .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
-            .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
-            .style('pointer-events', 'none')
-            .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
-        }
-      });
-
-      // Render subs WITHOUT polygon data using Voronoi fallback
-      if (subsWithoutPoly.length > 0) {
-        const subPoints = subsWithoutPoly.map(sub => {
-          const p = hoodProjection([sub.center[1], sub.center[0]]);
-          return p && !isNaN(p[0]) ? { ...sub, point: p } : null;
-        }).filter(Boolean);
-
-        if (subPoints.length === 1) {
-          // Single sub without polygon — use parent NTA shape
-          const sub = subPoints[0];
-          const subFill = getNTAFill(sub.id, sub.borough, subsWithPoly.length, subs.length);
-          subGroup.append('path')
-            .attr('class', 'sub-path')
-            .attr('d', hoodPath(feature))
-            .attr('data-sub-id', sub.id)
-            .attr('data-nta', ntaCode)
-            .style('fill', subFill)
-            .style('fill-opacity', 0.45)
-            .style('stroke', 'none')
-            .style('cursor', 'pointer')
-            .on('click', function(event) {
-              event.stopPropagation();
-              zoomToFeature(feature);
-              openHoodDetail(sub.id);
-            })
-            .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
-            .on('mouseleave', hideHoodTooltip);
-
-          const centroid = hoodPath.centroid(feature);
-          if (centroid && !isNaN(centroid[0])) {
-            mapGroup.append('text')
-              .attr('class', 'sub-label')
-              .attr('x', centroid[0]).attr('y', centroid[1])
-              .text(sub.name)
-              .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
-              .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
-              .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
-              .style('pointer-events', 'none')
-              .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
-          }
-        } else if (subPoints.length > 1) {
-          // Multiple subs without polygons — Voronoi fallback
-          const bounds = hoodPath.bounds(feature);
-          const bboxPad = 60;
-          const bbox = [
-            bounds[0][0] - bboxPad, bounds[0][1] - bboxPad,
-            bounds[1][0] + bboxPad, bounds[1][1] + bboxPad
-          ];
-          const delaunay = d3.Delaunay.from(subPoints, d => d.point[0], d => d.point[1]);
-          const voronoi = delaunay.voronoi(bbox);
-
-          subPoints.forEach((sub, i) => {
-            const cellPoly = voronoi.cellPolygon(i);
-            if (!cellPoly || cellPoly.length < 3) return;
-            const pathD = polygonToSVGPath(cellPoly);
-            if (!pathD) return;
-
-            const subFill = getNTAFill(sub.id, sub.borough, subsWithPoly.length + i, subs.length);
-            subGroup.append('path')
-              .attr('class', 'sub-path')
-              .attr('d', pathD)
-              .attr('data-sub-id', sub.id)
-              .attr('data-nta', ntaCode)
-              .style('fill', subFill)
-              .style('fill-opacity', 0.45)
-              .style('stroke', 'none')
-              .style('cursor', 'pointer')
-              .on('click', function(event) {
-                event.stopPropagation();
-                zoomToPoint(sub.center[0], sub.center[1], 10);
-                openHoodDetail(sub.id);
-              })
-              .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
-              .on('mouseleave', hideHoodTooltip);
-
-            mapGroup.append('text')
-              .attr('class', 'sub-label')
-              .attr('x', sub.point[0]).attr('y', sub.point[1])
-              .text(sub.name)
-              .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
-              .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
-              .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
-              .style('pointer-events', 'none')
-              .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
-          });
-        }
-      }
-    });
-
-    // ─── Priority reorder: use NEIGHBORHOOD_PRIORITY from overlap resolver ───
-    // Higher priority number = rendered on top (wins overlap conflicts)
-    // Falls back to area-based sort for neighborhoods without priority data
-    const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
-    const subPathNodes = mapGroup.selectAll('.sub-path').nodes();
-    if (subPathNodes.length > 1) {
-      const withPriority = subPathNodes.map(node => {
-        const subId = d3.select(node).attr('data-sub-id');
-        const priority = hasPriority && NEIGHBORHOOD_PRIORITY[subId]
-          ? NEIGHBORHOOD_PRIORITY[subId]
-          : 0; // no priority = draw first (behind everything)
-        return { node, subId, priority, area: svgPolyArea(node) };
-      });
-      // Sort ascending by priority (lowest first = painted first = behind)
-      // For ties, larger area goes behind
-      withPriority.sort((a, b) => {
-        if (a.priority !== b.priority) return a.priority - b.priority;
-        return b.area - a.area;
-      });
-      withPriority.forEach(item => {
-        item.node.parentNode.appendChild(item.node);
-      });
-    }
-
-    // NTA labels for NTAs WITHOUT subs (subs have their own labels)
-    ntaPaths.forEach(f => {
-      if (ntasWithSubs[f.properties.ntaCode]) return;
-      const centroid = hoodPath.centroid(f);
-      if (isNaN(centroid[0])) return;
-
-      const hood = getNeighborhoodById(f.properties.ntaCode);
-      const shortName = hood ? getHoodAbbr(hood.name) : f.properties.name.substring(0, 4);
-
-      mapGroup.append('text')
-        .attr('class', 'hood-label')
-        .attr('x', centroid[0])
-        .attr('y', centroid[1])
-        .text(shortName)
-        .style('font-size', '4.5px')
-        .style('fill', 'rgba(255,255,255,0.85)')
-        .style('font-family', 'Space Grotesk, sans-serif')
-        .style('font-weight', '500')
-        .style('text-anchor', 'middle')
-        .style('dominant-baseline', 'middle')
-        .style('pointer-events', 'none')
-        .style('opacity', 0.8)
-        .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
-    });
-
-    // Borough name labels
-    const boroughCentroids = {};
-    ntaPaths.forEach(f => {
-      const boro = f.properties.borough;
-      const c = hoodPath.centroid(f);
-      if (isNaN(c[0])) return;
-      if (!boroughCentroids[boro]) boroughCentroids[boro] = { x: 0, y: 0, n: 0 };
-      boroughCentroids[boro].x += c[0];
-      boroughCentroids[boro].y += c[1];
-      boroughCentroids[boro].n++;
-    });
-
-    Object.entries(boroughCentroids).forEach(([boro, data]) => {
-      const boroKey = boro.toLowerCase().replace(/ /g, '_');
-      mapGroup.append('text')
-        .attr('class', 'borough-label')
-        .attr('x', data.x / data.n)
-        .attr('y', data.y / data.n)
-        .text(boro.toUpperCase())
-        .style('font-size', '14px')
-        .style('font-weight', '800')
-        .style('fill', getBoroughColor(boroKey))
-        .style('fill-opacity', 0.12)
-        .style('text-anchor', 'middle')
-        .style('pointer-events', 'none')
-        .style('font-family', 'Syne, sans-serif')
-        .style('letter-spacing', '3px');
-    });
-
-    refreshMapColors();
-    hoodMapReady = true;
-  }).catch(function(err) {
-    console.error('GeoJSON load error:', err);
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4)">Map data could not be loaded</div>';
-  });
+  return Math.abs(area / 2);
 }
 
 // ─── Get short abbreviation ─────────────────────────────────────
@@ -976,142 +87,333 @@ function getHoodAbbr(name) {
   return words.slice(0, 4).map(w => w[0]).join('').toUpperCase();
 }
 
-// ─── Animated zoom to feature ───────────────────────────────────
-function zoomToFeature(feature) {
-  if (!hoodSvg || !hoodZoom || !hoodPath) return;
+// ─── Sub-neighborhood ID → locality boundary name ───────────────
+const SUB_TO_LOCALITY = {
+  'MN-FiDi': 'Financial District', 'MN-BPC': 'Battery Park City',
+  'MN-Tribeca': 'TriBeCa', 'MN-CivCtr': 'Civic Center',
+  'MN-SoHo': 'SoHo', 'MN-LittleItaly': 'Little Italy',
+  'MN-HudsonSq': 'Hudson Square', 'MN-Nolita': 'NoLita',
+  'MN-GrnwchVlg': 'Greenwich Village', 'MN-NoHo': 'NoHo',
+  'MN-WestVlg': 'West Village', 'MN-Meatpacking': 'Meatpacking District',
+  'MN-Chinatown': 'Chinatown', 'MN-TwoBridges': 'Two Bridges',
+  'MN-LES': 'Lower East Side', 'MN-Bowery': 'Bowery',
+  'MN-EastVlg': 'East Village', 'MN-AlphaCity': 'Alphabet City',
+  'MN-Chelsea': 'Chelsea', 'MN-HudsonYards': 'Hudson Yards',
+  'MN-HellsK': "Hell's Kitchen", 'MN-GarmentDist': 'Garment District',
+  'MN-Flatiron': 'Flatiron District', 'MN-UnionSq': 'Union Square',
+  'MN-NoMad': 'NoMad', 'MN-Koreatown': 'Koreatown',
+  'MN-Midtown': 'Midtown Center', 'MN-TimesSq': 'Theater District',
+  'MN-DiamondDist': 'Diamond District',
+  'MN-StuyTown': 'Stuyvesant Town', 'MN-PeterCooper': 'Peter Cooper Village',
+  'MN-Gramercy': 'Gramercy Park', 'MN-RoseHill': 'Rose Hill',
+  'MN-MurrayHill': 'Murray Hill', 'MN-KipsBay': 'Kips Bay',
+  'MN-EastMidtown': 'Midtown East', 'MN-TurtleBay': 'Turtle Bay',
+  'MN-SuttonPl': 'Sutton Place', 'MN-TudorCity': 'Tudor City',
+  'MN-LincolnSq': 'Lincoln Square',
+  'MN-UWS': 'Upper West Side', 'MN-ManValley': 'Manhattan Valley',
+  'MN-LenoxHill': 'Lenox Hill', 'MN-UES': 'Upper East Side',
+  'MN-CarnegieHill': 'Carnegie Hill', 'MN-Yorkville': 'Yorkville',
+  'MN-MorningsideHts': 'Morningside Heights',
+  'MN-Manhattanville': 'Manhattanville',
+  'MN-HamiltonHts': 'Hamilton Heights', 'MN-SugarHill': 'Sugar Hill',
+  'MN-Harlem': 'Harlem',
+  'MN-SpanishHarlem': 'East Harlem',
+};
 
-  const [[x0, y0], [x1, y1]] = hoodPath.bounds(feature);
-  const dx = x1 - x0;
-  const dy = y1 - y0;
-  const x = (x0 + x1) / 2;
-  const y = (y0 + y1) / 2;
-  const scale = Math.max(1, Math.min(12, 0.9 / Math.max(dx / mapW, dy / mapH)));
+// ─── Load GeoJSON + render Leaflet map ──────────────────────────
+function initHoodMap() {
+  if (hoodMapReady) return;
 
-  hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
-    .call(hoodZoom.transform, d3.zoomIdentity
-      .translate(mapW / 2, mapH / 2)
-      .scale(scale)
-      .translate(-x, -y));
+  const container = document.getElementById('hood-map-container');
+  if (!container) return;
+
+  // Ensure container has height for Leaflet
+  if (!container.style.height) {
+    const w = container.clientWidth || 900;
+    container.style.height = Math.round(w * 0.85) + 'px';
+  }
+
+  // Create Leaflet map
+  hoodMap = L.map('hood-map-container', {
+    zoomControl: false,
+    attributionControl: false,
+    minZoom: 10,
+    maxZoom: 18,
+  }).setView([40.748, -73.985], 12);
+
+  // CartoDB Dark Matter tiles — real streets visible
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+  }).addTo(hoodMap);
+
+  // Load NTA GeoJSON for borough boundaries
+  d3.json('data/nyc-neighborhoods.json').then(function(geo) {
+    hoodGeoData = geo;
+    renderLeafletMap(geo);
+    hoodMapReady = true;
+  }).catch(function(err) {
+    console.error('GeoJSON load error:', err);
+    // Even without GeoJSON, render locality boundaries
+    renderLocalityOnly();
+    hoodMapReady = true;
+  });
 }
 
-// ─── Zoom to a lat/lng point ────────────────────────────────────
-function zoomToPoint(lat, lng, zoomLevel) {
-  if (!hoodSvg || !hoodZoom || !hoodProjection) return;
-  const projected = hoodProjection([lng, lat]);
-  if (!projected || isNaN(projected[0])) return;
+// ─── Render all layers onto the Leaflet map ─────────────────────
+function renderLeafletMap(geo) {
+  const ntaPaths = [];
+  let centralParkFeature = null;
 
-  const scale = zoomLevel || 8;
-  hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
-    .call(hoodZoom.transform, d3.zoomIdentity
-      .translate(mapW / 2, mapH / 2)
-      .scale(scale)
-      .translate(-projected[0], -projected[1]));
-}
-
-// ─── Reset/zoom controls ────────────────────────────────────────
-function resetMapZoom() {
-  if (!hoodSvg || !hoodZoom) return;
-  hoodSvg.transition().duration(750).ease(d3.easeCubicInOut)
-    .call(hoodZoom.transform, d3.zoomIdentity);
-}
-
-function zoomMapIn() {
-  if (!hoodSvg || !hoodZoom) return;
-  hoodSvg.transition().duration(300).call(hoodZoom.scaleBy, 1.5);
-}
-
-function zoomMapOut() {
-  if (!hoodSvg || !hoodZoom) return;
-  hoodSvg.transition().duration(300).call(hoodZoom.scaleBy, 0.67);
-}
-
-// ─── Refresh map colors ─────────────────────────────────────────
-function refreshMapColors() {
-  if (!mapGroup) return;
-
-  // NTA base paths — if has subs, dim the base to let sub-paths show
-  mapGroup.selectAll('.nta-path').each(function(d) {
-    const el = d3.select(this);
-    const code = d.properties.ntaCode;
-    const fill = d.properties._fill;
-    const hasSubs = getSubsForNTA(code).length > 0;
-
-    if (hasSubs) {
-      // Base NTA path — subtle backdrop visible only in gaps between sub-polygons
-      el.style('fill', fill).style('fill-opacity', 0.08)
-        .style('stroke', 'none');
-    } else {
-      const status = getNeighborhoodStatus(code);
-      if (status === 'lived') {
-        el.style('fill', fill).style('fill-opacity', 0.95)
-          .style('stroke', '#fff').style('stroke-width', 1.2);
-      } else if (status === 'visited') {
-        el.style('fill', fill).style('fill-opacity', 0.55)
-          .style('stroke', 'rgba(255,255,255,0.25)').style('stroke-width', 0.6);
-      } else {
-        el.style('fill', fill).style('fill-opacity', 0.15)
-          .style('stroke', 'rgba(255,255,255,0.08)').style('stroke-width', 0.5);
-      }
+  geo.features.forEach(f => {
+    const code = NTA_NAME_TO_CODE[f.properties.name];
+    if (f.properties.name === 'Central Park') {
+      centralParkFeature = f;
+    } else if (f.properties.ntatype === '0' && code) {
+      f.properties.ntaCode = code;
+      ntaPaths.push(f);
     }
   });
 
-  // Sub-neighborhood paths — use priority data for overlap detection
+  // Track which NTAs have subs
+  const ntasWithSubs = {};
+  if (typeof SUB_TO_NTA !== 'undefined') {
+    Object.values(SUB_TO_NTA).forEach(ntaCode => { ntasWithSubs[ntaCode] = true; });
+  }
+
+  // Borough color index for variation
+  const boroughCounts = {};
+  ntaPaths.forEach(f => {
+    const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
+    if (!boroughCounts[boro]) boroughCounts[boro] = 0;
+    boroughCounts[boro]++;
+  });
+  const boroughIdx = {};
+
+  // ─── 1. Background NTA shapes (non-Manhattan or NTAs without subs) ───
+  ntaPaths.forEach(f => {
+    const boro = f.properties.borough.toLowerCase().replace(/ /g, '_');
+    if (!boroughIdx[boro]) boroughIdx[boro] = 0;
+    const idx = boroughIdx[boro]++;
+    const total = boroughCounts[boro];
+    const fill = getNTAFill(f.properties.ntaCode, boro, idx, total);
+    f.properties._fill = fill;
+    f.properties._boro = boro;
+
+    const hasSubs = ntasWithSubs[f.properties.ntaCode];
+    const latlngs = geoJSONToLatLngs(f.geometry);
+    if (!latlngs) return;
+
+    const layer = L.polygon(latlngs, {
+      color: hasSubs ? 'transparent' : 'rgba(255,255,255,0.08)',
+      weight: hasSubs ? 0 : 0.5,
+      fillColor: fill,
+      fillOpacity: hasSubs ? 0.06 : 0.15,
+      interactive: !hasSubs,
+    }).addTo(hoodMap);
+
+    if (!hasSubs) {
+      const code = f.properties.ntaCode;
+      layer.on('click', function() { openHoodDetail(code); });
+      layer.on('mouseover', function(e) { showHoodTooltipLeaflet(e, code); });
+      layer.on('mouseout', hideHoodTooltip);
+      hoodPolygonLayers[code] = layer;
+    }
+    hoodBgLayers.push({ layer, feature: f, hasSubs });
+  });
+
+  // ─── 2. Central Park ───
+  if (centralParkFeature) {
+    const latlngs = geoJSONToLatLngs(centralParkFeature.geometry);
+    if (latlngs) {
+      centralParkLayer = L.polygon(latlngs, {
+        color: 'rgba(100,200,100,0.3)',
+        weight: 0.8,
+        fillColor: '#1a4d2e',
+        fillOpacity: 0.6,
+      }).addTo(hoodMap);
+      centralParkLayer.on('click', function() { openHoodDetail('MN-CentralPark'); });
+      centralParkLayer.on('mouseover', function(e) { showHoodTooltipLeaflet(e, 'MN-CentralPark'); });
+      centralParkLayer.on('mouseout', hideHoodTooltip);
+    }
+  }
+
+  // ─── 3. Sub-neighborhood polygons from LOCALITY_BOUNDARIES ───
+  renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts);
+
+  // ─── 4. Apply visited/lived colors ───
+  refreshMapColors();
+}
+
+// ─── Render locality-only (fallback if no GeoJSON) ──────────────
+function renderLocalityOnly() {
+  renderLocalityPolygons([], {}, {});
+  refreshMapColors();
+}
+
+// ─── Render sub-neighborhood polygons with priority z-ordering ──
+function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
+  const hasLocality = typeof LOCALITY_BOUNDARIES !== 'undefined';
   const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
-  const subNodes = [];
-  mapGroup.selectAll('.sub-path').each(function() {
-    const el = d3.select(this);
-    const subId = el.attr('data-sub-id');
-    const area = svgPolyArea(this);
-    const bbox = this.getBBox ? this.getBBox() : null;
-    const priority = hasPriority && NEIGHBORHOOD_PRIORITY[subId]
-      ? NEIGHBORHOOD_PRIORITY[subId] : 0;
-    subNodes.push({ el, subId, area, bbox, priority, node: this });
+  if (!hasLocality) return;
+
+  // Collect all sub-neighborhoods that have locality polygon data
+  const subEntries = [];
+
+  // Process NTAs that have subs
+  const processedNTAs = new Set();
+  ntaPaths.forEach(feature => {
+    const ntaCode = feature.properties.ntaCode;
+    if (!ntasWithSubs || !ntasWithSubs[ntaCode]) return;
+    processedNTAs.add(ntaCode);
+
+    const subs = getSubsForNTA(ntaCode);
+    subs.forEach((sub, i) => {
+      const localityName = SUB_TO_LOCALITY[sub.id];
+      const localityData = localityName ? LOCALITY_BOUNDARIES[localityName] : null;
+      if (!localityData || !localityData.polygon) return;
+
+      const priority = hasPriority && NEIGHBORHOOD_PRIORITY[sub.id]
+        ? NEIGHBORHOOD_PRIORITY[sub.id] : 0;
+
+      subEntries.push({
+        subId: sub.id,
+        hood: sub,
+        polygon: localityData.polygon,
+        borough: sub.borough,
+        priority: priority,
+        ntaCode: ntaCode,
+        idx: i,
+        totalInNTA: subs.length,
+      });
+    });
   });
 
-  // Mark sub-paths that have higher-priority neighbors overlapping them
-  // A path is "overlapped" if a higher-priority path's bbox intersects it
-  subNodes.forEach(entry => {
-    const isOverlapped = entry.bbox && subNodes.some(other =>
-      other.subId !== entry.subId &&
-      other.priority > entry.priority &&
-      other.bbox &&
-      !(other.bbox.x > entry.bbox.x + entry.bbox.width ||
-        other.bbox.x + other.bbox.width < entry.bbox.x ||
-        other.bbox.y > entry.bbox.y + entry.bbox.height ||
-        other.bbox.y + other.bbox.height < entry.bbox.y)
-    );
-    entry.el.classed('sub-path-overlapped', isOverlapped && !getNeighborhoodStatus(entry.subId));
+  // Also check for locality polygons that match neighborhoods not in NTA system
+  // (e.g., islands, standalone areas)
+  NEIGHBORHOODS.forEach(hood => {
+    if (hood.borough !== 'manhattan') return;
+    if (hoodPolygonLayers[hood.id]) return; // already rendered as NTA
+    const localityName = SUB_TO_LOCALITY[hood.id];
+    const localityData = localityName ? LOCALITY_BOUNDARIES[localityName] : null;
+    if (!localityData || !localityData.polygon) return;
+    if (subEntries.some(e => e.subId === hood.id)) return; // already queued
+
+    const priority = hasPriority && NEIGHBORHOOD_PRIORITY[hood.id]
+      ? NEIGHBORHOOD_PRIORITY[hood.id] : 0;
+
+    subEntries.push({
+      subId: hood.id,
+      hood: hood,
+      polygon: localityData.polygon,
+      borough: hood.borough,
+      priority: priority,
+      ntaCode: hood.parent || hood.id,
+      idx: 0,
+      totalInNTA: 1,
+    });
   });
 
-  subNodes.forEach(entry => {
-    const status = getNeighborhoodStatus(entry.subId);
-    const hood = getNeighborhoodById(entry.subId);
-    if (!hood) return;
+  // Sort by priority ascending (lowest first → added to map first → behind)
+  // For ties, larger area behind
+  subEntries.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return latlngPolyArea(b.polygon) - latlngPolyArea(a.polygon);
+  });
 
-    const idx = NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === getSubNTA(entry.subId))
-      .findIndex(h => h.id === entry.subId);
-    const total = NEIGHBORHOODS.filter(h => h.parent && getSubNTA(h.id) === getSubNTA(entry.subId)).length;
-    const subFill = getNTAFill(entry.subId, hood.borough, Math.max(0, idx), Math.max(1, total));
+  // Render each sub-neighborhood polygon
+  subEntries.forEach(entry => {
+    // Convert [lat, lng] polygon to Leaflet-compatible format
+    const latlngs = entry.polygon.map(p => [p[0], p[1]]);
+    const subFill = getNTAFill(entry.subId, entry.borough, entry.idx, entry.totalInNTA);
 
-    if (status === 'lived') {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.75)
-        .style('stroke', 'none');
-    } else if (status === 'visited') {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.55)
-        .style('stroke', 'none');
-    } else if (entry.el.classed('sub-path-overlapped')) {
-      // Lower-priority overlapping polygon — visible but behind higher-priority
-      entry.el.style('fill', subFill).style('fill-opacity', 0.30)
-        .style('stroke', 'none');
-    } else {
-      // Default unvisited — streets cut through as visible boundaries
-      entry.el.style('fill', subFill).style('fill-opacity', 0.45)
-        .style('stroke', 'none');
+    // Use pane with z-index based on priority for stacking order
+    const paneName = 'sub-' + entry.priority;
+    if (!hoodMap.getPane(paneName)) {
+      hoodMap.createPane(paneName);
+      hoodMap.getPane(paneName).style.zIndex = 400 + entry.priority;
     }
+
+    const layer = L.polygon(latlngs, {
+      pane: paneName,
+      color: 'transparent',
+      weight: 0,
+      fillColor: subFill,
+      fillOpacity: 0.45,
+      interactive: true,
+    }).addTo(hoodMap);
+
+    layer._subFill = subFill;
+    layer._subId = entry.subId;
+    layer._borough = entry.borough;
+    layer._priority = entry.priority;
+
+    layer.on('click', function() {
+      openHoodDetail(entry.subId);
+      // Zoom to the neighborhood
+      hoodMap.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 15 });
+    });
+
+    layer.on('mouseover', function(e) {
+      showHoodTooltipLeaflet(e, entry.subId);
+      // Highlight on hover
+      layer.setStyle({
+        fillOpacity: 0.65,
+        color: 'rgba(255,255,255,0.4)',
+        weight: 1.5,
+      });
+    });
+
+    layer.on('mouseout', function() {
+      hideHoodTooltip();
+      // Restore style — will be set by refreshMapColors
+      const status = getNeighborhoodStatus(entry.subId);
+      if (status === 'lived') {
+        layer.setStyle({ fillOpacity: 0.75, color: 'transparent', weight: 0 });
+      } else if (status === 'visited') {
+        layer.setStyle({ fillOpacity: 0.55, color: 'transparent', weight: 0 });
+      } else {
+        layer.setStyle({ fillOpacity: 0.45, color: 'transparent', weight: 0 });
+      }
+    });
+
+    hoodPolygonLayers[entry.subId] = layer;
   });
 }
 
-// ─── Tooltip ────────────────────────────────────────────────────
+// ─── Convert GeoJSON geometry to Leaflet latlngs ────────────────
+function geoJSONToLatLngs(geometry) {
+  if (!geometry) return null;
+
+  if (geometry.type === 'Polygon') {
+    return geometry.coordinates.map(ring =>
+      ring.map(coord => [coord[1], coord[0]])
+    );
+  } else if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates.map(poly =>
+      poly.map(ring => ring.map(coord => [coord[1], coord[0]]))
+    );
+  }
+  return null;
+}
+
+// ─── Tooltip (uses same tooltip element as before) ──────────────
+function showHoodTooltipLeaflet(e, hoodId) {
+  const tooltip = document.getElementById('tooltip');
+  const hood = getNeighborhoodById(hoodId);
+  if (!hood || !tooltip) return;
+
+  const status = getNeighborhoodStatus(hoodId);
+  const statusText = status === 'lived' ? ' · Lived' : status === 'visited' ? ' · Visited' : '';
+
+  document.getElementById('t-name').textContent = hood.name;
+  document.getElementById('t-sub').textContent = getBoroughName(hood.borough) + statusText;
+
+  tooltip.style.display = 'block';
+  tooltip.style.left = (e.originalEvent.pageX + 12) + 'px';
+  tooltip.style.top = (e.originalEvent.pageY - 10) + 'px';
+}
+
 function showHoodTooltip(event, hoodId) {
   const tooltip = document.getElementById('tooltip');
   const hood = getNeighborhoodById(hoodId);
@@ -1131,6 +433,101 @@ function showHoodTooltip(event, hoodId) {
 function hideHoodTooltip() {
   const tooltip = document.getElementById('tooltip');
   if (tooltip) tooltip.style.display = 'none';
+}
+
+// ─── Refresh map colors based on visited/lived status ───────────
+function refreshMapColors() {
+  if (!hoodMap) return;
+
+  // NTA background layers (non-sub)
+  hoodBgLayers.forEach(entry => {
+    if (entry.hasSubs) return;
+    const code = entry.feature.properties.ntaCode;
+    const fill = entry.feature.properties._fill;
+    const status = getNeighborhoodStatus(code);
+
+    if (status === 'lived') {
+      entry.layer.setStyle({
+        fillColor: fill, fillOpacity: 0.85,
+        color: '#fff', weight: 1.2,
+      });
+    } else if (status === 'visited') {
+      entry.layer.setStyle({
+        fillColor: fill, fillOpacity: 0.5,
+        color: 'rgba(255,255,255,0.25)', weight: 0.6,
+      });
+    } else {
+      entry.layer.setStyle({
+        fillColor: fill, fillOpacity: 0.15,
+        color: 'rgba(255,255,255,0.08)', weight: 0.5,
+      });
+    }
+  });
+
+  // Sub-neighborhood polygon layers
+  const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
+
+  // Build overlap map for dimming
+  const subEntries = [];
+  Object.entries(hoodPolygonLayers).forEach(([subId, layer]) => {
+    if (!layer._subFill) return; // skip NTA-only layers
+    const priority = layer._priority || 0;
+    const bounds = layer.getBounds();
+    subEntries.push({ subId, layer, priority, bounds });
+  });
+
+  subEntries.forEach(entry => {
+    const status = getNeighborhoodStatus(entry.subId);
+    const fill = entry.layer._subFill;
+
+    // Check if overlapped by higher-priority neighbor
+    const isOverlapped = subEntries.some(other =>
+      other.subId !== entry.subId &&
+      other.priority > entry.priority &&
+      entry.bounds.intersects(other.bounds)
+    );
+
+    if (status === 'lived') {
+      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.75, color: 'transparent', weight: 0 });
+    } else if (status === 'visited') {
+      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.55, color: 'transparent', weight: 0 });
+    } else if (isOverlapped) {
+      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.30, color: 'transparent', weight: 0 });
+    } else {
+      entry.layer.setStyle({ fillColor: fill, fillOpacity: 0.45, color: 'transparent', weight: 0 });
+    }
+  });
+}
+
+// ─── Zoom controls ──────────────────────────────────────────────
+function zoomMapIn() {
+  if (!hoodMap) return;
+  hoodMap.zoomIn();
+}
+
+function zoomMapOut() {
+  if (!hoodMap) return;
+  hoodMap.zoomOut();
+}
+
+function resetMapZoom() {
+  if (!hoodMap) return;
+  hoodMap.setView([40.748, -73.985], 12, { animate: true });
+}
+
+// ─── Zoom to a specific neighborhood ────────────────────────────
+function zoomToFeature(feature) {
+  if (!hoodMap || !feature) return;
+  const latlngs = geoJSONToLatLngs(feature.geometry);
+  if (latlngs) {
+    const bounds = L.polygon(latlngs).getBounds();
+    hoodMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, animate: true });
+  }
+}
+
+function zoomToPoint(lat, lng, zoomLevel) {
+  if (!hoodMap) return;
+  hoodMap.setView([lat, lng], zoomLevel || 15, { animate: true });
 }
 
 // ─── Render neighborhood cards grid ─────────────────────────────
@@ -1171,11 +568,14 @@ function renderNeighborhoods(filter) {
 
     card.onclick = () => {
       openHoodDetail(hood.id);
-      if (hood.parent && hoodGeoData) {
+      // Zoom map to this neighborhood
+      const layer = hoodPolygonLayers[hood.id];
+      if (layer) {
+        hoodMap.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 15, animate: true });
+      } else if (hood.parent && hoodGeoData) {
         const ntaCode = getSubNTA(hood.id);
         const feat = hoodGeoData.features.find(f => f.properties.ntaCode === ntaCode);
         if (feat) zoomToFeature(feat);
-        setTimeout(() => zoomToPoint(hood.center[0], hood.center[1], 10), 800);
       } else if (hoodGeoData) {
         const feat = hoodGeoData.features.find(f => f.properties.ntaCode === hood.id);
         if (feat) zoomToFeature(feat);
@@ -1294,7 +694,7 @@ function toggleHoodLived() {
   showToast(newStatus ? 'Marked as lived' : 'Removed lived status');
 }
 
-// ─── Build mini SVG map ─────────────────────────────────────────
+// ─── Build mini map (D3 — self-contained for detail popup) ──────
 function buildMiniMap(hoodId, color) {
   const container = document.getElementById('hd-minimap');
   container.innerHTML = '';
@@ -1335,7 +735,6 @@ function buildMiniMap(hoodId, color) {
       .style('stroke-width', 1.5)
       .style('stroke-opacity', 0.6);
 
-    // Highlight sub-neighborhood center
     if (hood.parent) {
       const projected = miniProj([hood.center[1], hood.center[0]]);
       if (projected && !isNaN(projected[0])) {

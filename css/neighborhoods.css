@@ -19,100 +19,26 @@
 #hood-map-container {
   width: 100%;
   min-height: 400px;
+  height: 600px;
   border-radius: 12px;
   overflow: hidden;
   background: #0A0A0A;
-  cursor: grab;
 }
 
-#hood-map-container:active {
-  cursor: grabbing;
-}
-
-#hood-map-container svg {
-  display: block;
-  background: transparent;
-}
-
-/* NTA neighborhood paths */
-.nta-path {
-  cursor: pointer;
-  transition: fill-opacity 0.2s, stroke 0.2s;
-}
-
-.nta-path:hover {
-  fill-opacity: 0.35 !important;
-  stroke: rgba(255,255,255,0.4) !important;
-  stroke-width: 1px !important;
-}
-
-/* Background paths (parks, water, etc) */
-.bg-path {
-  pointer-events: none;
-}
-
-/* Sub-neighborhood Voronoi cells */
-.sub-path {
-  cursor: pointer;
-  transition: fill-opacity 0.15s, stroke 0.15s;
-}
-
-.sub-path:hover {
-  fill-opacity: 0.5 !important;
-  stroke: rgba(255,255,255,0.5) !important;
-}
-
-/* Large overlapping neighborhoods — nearly invisible until hovered */
-.sub-path-overlapped {
-  fill-opacity: 0.04;
-  stroke: rgba(255,255,255,0.06);
-}
-
-.sub-path-overlapped:hover {
-  fill-opacity: 0.35 !important;
-  stroke: rgba(255,255,255,0.4) !important;
-}
-
-/* Street grid lines */
-.street-line {
-  pointer-events: none;
-}
-.street-grid {
-  opacity: 1;
-}
-/* OSM streets render behind all neighborhood content */
-.osm-streets {
-  opacity: 1;
-}
-
-.sub-label {
-  transition: opacity 0.3s;
-}
-
-/* Legacy class — keep for compatibility */
-.hood-path {
-  cursor: pointer;
-  transition: fill 0.2s, fill-opacity 0.2s, stroke 0.2s;
-}
-
-.hood-path:hover {
-  fill-opacity: 0.85 !important;
-  stroke: rgba(255,255,255,0.5) !important;
-  stroke-width: 1.5 !important;
-}
-
-.hood-label {
+/* Leaflet container inside the map wrapper */
+#hood-map-container .leaflet-container {
+  background: #0A0A0A;
   font-family: 'Space Grotesk', sans-serif;
-  font-weight: 600;
-  fill: rgba(255,255,255,0.45);
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-  letter-spacing: 0.3px;
 }
 
-.borough-label {
-  pointer-events: none;
+/* Make Leaflet tile pane slightly transparent so neighborhood colors pop */
+#hood-map-container .leaflet-tile-pane {
+  opacity: 0.85;
+}
+
+/* Hide Leaflet attribution for clean look */
+#hood-map-container .leaflet-control-attribution {
+  display: none;
 }
 
 /* ============================================
@@ -628,6 +554,7 @@
 
   #hood-map-container {
     min-height: 300px;
+    height: 450px;
   }
 
   .borough-filter {
