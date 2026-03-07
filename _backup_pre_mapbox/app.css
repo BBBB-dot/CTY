@@ -1,30 +1,26 @@
 /* ============================================
    CTY App - Main Stylesheet
-   Warm NYC Night aesthetic
+   Dark/Neon NYC-at-night aesthetic
    ============================================ */
 
 :root {
-  /* Warm NYC night base */
-  --bg: #0B0D12;
-  --surface: #131620;
-  --surface-2: #1A1E28;
-  --surface-3: #252A35;
-  --border: rgba(255,255,255,0.09);
-  --border-hover: rgba(255,255,255,0.18);
-  --text: #F2F0ED;
-  --text-2: #A8A4A0;
-  --text-3: #6B6660;
+  /* Dark mode base */
+  --bg: #0A0A0A;
+  --surface: #141414;
+  --surface-2: #1A1A1A;
+  --surface-3: #222222;
+  --border: rgba(255,255,255,0.08);
+  --border-hover: rgba(255,255,255,0.15);
+  --text: #F0F0F0;
+  --text-2: #A0A0A0;
+  --text-3: #666;
 
-  /* Borough accents */
+  /* Warm borough accents */
   --neon-manhattan: #E8A838;
   --neon-brooklyn: #3AAFA9;
   --neon-queens: #E07855;
   --neon-bronx: #8B7FD4;
   --neon-staten: #7DAF6B;
-
-  /* Primary accent (warm gold) */
-  --accent: #E8A838;
-  --accent-glow: rgba(232, 168, 56, 0.4);
 
   /* Layout */
   --radius: 12px;
@@ -33,9 +29,9 @@
   --max-width: 1200px;
 
   /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.35);
-  --shadow-md: 0 8px 24px rgba(0,0,0,0.45);
-  --shadow-lg: 0 16px 48px rgba(0,0,0,0.55);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.5);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.6);
 }
 
 /* ============================================
@@ -86,8 +82,8 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
+  border-color: var(--neon-manhattan);
+  box-shadow: 0 0 12px rgba(255, 20, 147, 0.3);
 }
 
 textarea {
@@ -153,19 +149,19 @@ textarea {
   font-weight: 800;
   color: var(--text);
   margin-bottom: 16px;
-  text-shadow: 0 0 20px rgba(232, 168, 56, 0.6),
-               0 0 40px rgba(232, 168, 56, 0.3);
+  text-shadow: 0 0 20px rgba(255, 20, 147, 0.6),
+               0 0 40px rgba(255, 20, 147, 0.3);
   animation: logoGlow 2s ease-in-out infinite;
 }
 
 @keyframes logoGlow {
   0%, 100% {
-    text-shadow: 0 0 20px rgba(232, 168, 56, 0.6),
-                 0 0 40px rgba(232, 168, 56, 0.3);
+    text-shadow: 0 0 20px rgba(255, 20, 147, 0.6),
+                 0 0 40px rgba(255, 20, 147, 0.3);
   }
   50% {
-    text-shadow: 0 0 30px rgba(232, 168, 56, 0.8),
-                 0 0 60px rgba(232, 168, 56, 0.5);
+    text-shadow: 0 0 30px rgba(255, 20, 147, 0.8),
+                 0 0 60px rgba(255, 20, 147, 0.5);
   }
 }
 
@@ -209,12 +205,12 @@ nav {
   display: flex;
   align-items: center;
   gap: 10px;
-  text-shadow: 0 0 10px rgba(232, 168, 56, 0.35);
+  text-shadow: 0 0 10px rgba(255, 20, 147, 0.4);
   transition: text-shadow 0.3s;
 }
 
 .nav-logo:hover {
-  text-shadow: 0 0 20px rgba(232, 168, 56, 0.5);
+  text-shadow: 0 0 20px rgba(255, 20, 147, 0.6);
 }
 
 .logo-icon {
@@ -270,10 +266,10 @@ nav {
 }
 
 .nav-tab.active {
-  background: var(--accent);
+  background: var(--neon-manhattan);
   color: #000;
-  box-shadow: 0 0 12px var(--accent-glow);
-  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(255, 20, 147, 0.5);
+  border-color: var(--neon-manhattan);
 }
 
 .nav-stats {
@@ -304,18 +300,18 @@ nav {
 
 .nav-auth-btn {
   padding: 8px 16px;
-  background: var(--accent);
+  background: var(--neon-manhattan);
   color: #000;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
   transition: all 0.2s;
-  box-shadow: 0 0 12px rgba(232, 168, 56, 0.25);
+  box-shadow: 0 0 12px rgba(255, 20, 147, 0.3);
 }
 
 .nav-auth-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 20px rgba(232, 168, 56, 0.45);
+  box-shadow: 0 0 20px rgba(255, 20, 147, 0.5);
 }
 
 /* Mobile nav */
@@ -471,29 +467,29 @@ nav {
 /* Borough-specific filter colors */
 .filter-btn.manhattan.active {
   background: var(--neon-manhattan);
-  box-shadow: 0 0 12px rgba(232, 168, 56, 0.45);
+  box-shadow: 0 0 12px rgba(255, 20, 147, 0.5);
 }
 
 .filter-btn.brooklyn.active {
   background: var(--neon-brooklyn);
-  box-shadow: 0 0 12px rgba(58, 175, 169, 0.45);
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.5);
 }
 
 .filter-btn.queens.active {
   background: var(--neon-queens);
   color: #000;
-  box-shadow: 0 0 12px rgba(224, 120, 85, 0.45);
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.5);
 }
 
 .filter-btn.bronx.active {
   background: var(--neon-bronx);
-  box-shadow: 0 0 12px rgba(139, 127, 212, 0.45);
+  box-shadow: 0 0 12px rgba(188, 19, 254, 0.5);
 }
 
 .filter-btn.staten.active {
   background: var(--neon-staten);
   color: #000;
-  box-shadow: 0 0 12px rgba(125, 175, 107, 0.45);
+  box-shadow: 0 0 12px rgba(255, 140, 66, 0.5);
 }
 
 /* ============================================
@@ -617,7 +613,7 @@ nav {
 }
 
 .auth-modal-form button {
-  background: var(--accent);
+  background: var(--neon-manhattan);
   color: #000;
   padding: 10px;
   border-radius: var(--radius-sm);
@@ -629,7 +625,7 @@ nav {
 
 .auth-modal-form button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 12px var(--accent-glow);
+  box-shadow: 0 0 12px rgba(255, 20, 147, 0.4);
 }
 
 .auth-modal-close {

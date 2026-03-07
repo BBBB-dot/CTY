@@ -1,10 +1,10 @@
 /* ============================================
    CTY - Neighborhoods Page Stylesheet
-   Mapbox GL JS Map + Cards Grid + Detail Popup
+   Leaflet Tile Map + Cards Grid + Detail Popup
    ============================================ */
 
 /* ============================================
-   MAP CONTAINER (Mapbox GL handles rotation natively via bearing)
+   MAP CONTAINER (rotated for vertical Manhattan)
    ============================================ */
 
 .hood-map-wrap {
@@ -15,24 +15,36 @@
   margin-bottom: 32px;
   position: relative;
   overflow: hidden;
+  /* Height matches the visible area — the inner container expands
+     slightly to fill corners exposed by the CSS rotation */
   min-height: 400px;
   height: 600px;
 }
 
 #hood-map-container {
-  width: 100%;
-  height: 100%;
+  /* JS will set width/height/transform for rotation */
   border-radius: 0;
+  overflow: hidden;
+  background: #0A0A0A;
 }
 
-/* Hide Mapbox attribution/logo for clean look */
-#hood-map-container .mapboxgl-ctrl-attrib,
-#hood-map-container .mapboxgl-ctrl-logo {
-  display: none !important;
+/* Leaflet tile pane — full brightness so streets & labels are readable */
+#hood-map-container .leaflet-tile-pane {
+  opacity: 1;
+}
+
+/* Hide Leaflet attribution for clean look */
+#hood-map-container .leaflet-control-attribution {
+  display: none;
+}
+
+/* Smooth polygon transitions via SVG CSS */
+.leaflet-overlay-pane svg path {
+  transition: fill-opacity 0.2s ease, stroke 0.2s ease, stroke-width 0.2s ease;
 }
 
 /* ============================================
-   ZOOM CONTROLS (no counter-rotation needed — bearing is native)
+   ZOOM CONTROLS (counter-rotated to stay upright)
    ============================================ */
 
 .map-zoom-controls {
@@ -43,13 +55,15 @@
   flex-direction: column;
   gap: 4px;
   z-index: 10;
+  /* Counter-rotate so buttons stay upright while map is rotated */
+  transform: rotate(29deg);
 }
 
 .zoom-btn {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: rgba(19,22,32,0.92);
+  background: rgba(20,20,20,0.9);
   border: 1px solid rgba(255,255,255,0.15);
   color: rgba(255,255,255,0.7);
   font-size: 16px;
@@ -64,7 +78,7 @@
 }
 
 .zoom-btn:hover {
-  background: rgba(37,42,53,0.95);
+  background: rgba(40,40,40,0.95);
   color: #fff;
   border-color: rgba(255,255,255,0.3);
 }
@@ -292,7 +306,7 @@
   width: 420px;
   max-width: 92vw;
   max-height: 85vh;
-  background: #131620;
+  background: #141414;
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   z-index: 950;

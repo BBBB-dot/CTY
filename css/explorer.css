@@ -107,7 +107,7 @@
 .ep-header {
   min-height: 70px;
   padding: 16px;
-  background: linear-gradient(135deg, rgba(255, 20, 147, 0.1), rgba(0, 217, 255, 0.1));
+  background: linear-gradient(135deg, rgba(232, 168, 56, 0.08), rgba(58, 175, 169, 0.08));
   border-bottom: 1px solid var(--border);
   position: relative;
   display: flex;
@@ -116,15 +116,15 @@
 }
 
 .ep-header.restaurant {
-  background: linear-gradient(135deg, rgba(255, 107, 53, 0.15), rgba(255, 140, 66, 0.1));
+  background: linear-gradient(135deg, rgba(224, 120, 85, 0.12), rgba(232, 168, 56, 0.08));
 }
 
 .ep-header.attraction {
-  background: linear-gradient(135deg, rgba(0, 217, 255, 0.15), rgba(57, 255, 20, 0.1));
+  background: linear-gradient(135deg, rgba(58, 175, 169, 0.12), rgba(125, 175, 107, 0.08));
 }
 
 .ep-header.landmark {
-  background: linear-gradient(135deg, rgba(255, 20, 147, 0.15), rgba(188, 19, 254, 0.1));
+  background: linear-gradient(135deg, rgba(139, 127, 212, 0.12), rgba(232, 168, 56, 0.08));
 }
 
 .ep-body {
@@ -201,20 +201,20 @@
 }
 
 .ep-btn.visit {
-  background: var(--neon-manhattan);
+  background: var(--accent);
   color: #000;
-  box-shadow: 0 0 12px rgba(255, 20, 147, 0.3);
+  box-shadow: 0 0 12px rgba(232, 168, 56, 0.3);
 }
 
 .ep-btn.visit:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 16px rgba(255, 20, 147, 0.5);
+  box-shadow: 0 0 16px rgba(232, 168, 56, 0.5);
 }
 
 .ep-btn.visit.visited {
-  background: var(--neon-queens);
+  background: var(--neon-brooklyn);
   color: #000;
-  box-shadow: 0 0 12px rgba(57, 255, 20, 0.3);
+  box-shadow: 0 0 12px rgba(58, 175, 169, 0.3);
 }
 
 .ep-btn.fav {
@@ -230,8 +230,8 @@
 
 .ep-btn.fav.favorited {
   background: var(--surface-2);
-  color: var(--neon-manhattan);
-  border-color: var(--neon-manhattan);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* ============================================
@@ -270,21 +270,21 @@
 .cty-marker.attraction {
   background: var(--neon-brooklyn);
   border-color: var(--neon-brooklyn);
-  box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+  box-shadow: 0 0 8px rgba(58, 175, 169, 0.5);
 }
 
 .cty-marker.attraction:hover {
-  box-shadow: 0 0 16px rgba(0, 217, 255, 0.7);
+  box-shadow: 0 0 16px rgba(58, 175, 169, 0.7);
 }
 
 .cty-marker.landmark {
   background: var(--neon-bronx);
   border-color: var(--neon-bronx);
-  box-shadow: 0 0 8px rgba(188, 19, 254, 0.5);
+  box-shadow: 0 0 8px rgba(139, 127, 212, 0.5);
 }
 
 .cty-marker.landmark:hover {
-  box-shadow: 0 0 16px rgba(188, 19, 254, 0.7);
+  box-shadow: 0 0 16px rgba(139, 127, 212, 0.7);
 }
 
 .cty-marker.visited {
@@ -339,7 +339,7 @@
 
 .mapboxgl-ctrl button:hover {
   background: var(--surface-2);
-  color: var(--neon-manhattan);
+  color: var(--accent);
 }
 
 .mapboxgl-ctrl-group {
@@ -374,7 +374,7 @@
   width: 16px;
   height: 16px;
   border: 2px solid var(--surface-3);
-  border-top-color: var(--neon-manhattan);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   margin-right: 8px;
