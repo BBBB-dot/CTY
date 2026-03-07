@@ -1,7 +1,7 @@
 // NYC Neighborhoods — NTA 2020 + Manhattan micro-neighborhoods
 // NTA data from NYC Open Data ArcGIS boundaries
 // Manhattan sub-neighborhoods split from DCP "City of Neighborhoods" map
-// Total: 223 neighborhoods across 5 boroughs
+// Total: 224 neighborhoods across 5 boroughs
 
 const NEIGHBORHOODS = [
   // ─── Bronx (37) ───
@@ -185,6 +185,9 @@ const NEIGHBORHOODS = [
 
   // --- from MN0703: Upper West Side-Manhattan Valley ---
   { id: 'MN-ManValley', name: 'Manhattan Valley', borough: 'manhattan', center: [40.7985, -73.9680], parent: 'MN0703' },
+
+  // --- Central Park (special park neighborhood) ---
+  { id: 'MN-CentralPark', name: 'Central Park', borough: 'manhattan', center: [40.7829, -73.9654] },
 
   // --- from MN0801: UES-Lenox Hill-Roosevelt Island ---
   { id: 'MN-LenoxHill', name: 'Lenox Hill', borough: 'manhattan', center: [40.7640, -73.9620], parent: 'MN0801' },
