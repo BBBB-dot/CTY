@@ -194,6 +194,8 @@ async function fetchOSMStreets() {
 }
 
 // Render real OSM streets onto the D3 SVG map
+// Streets render ON TOP of neighborhood fills so they're always visible
+// as the base grid. Neighborhood polygons are translucent overlays.
 function renderOSMStreets(streetGeoJSON, pathFn, group) {
   if (!streetGeoJSON || !streetGeoJSON.features) return;
 
@@ -201,11 +203,11 @@ function renderOSMStreets(streetGeoJSON, pathFn, group) {
   group.selectAll('.street-grid').remove();
   group.selectAll('.street-line').remove();
 
-  // Insert before .nta-path so streets render behind neighborhoods
-  // Fall back to append if NTA paths don't exist yet
-  const firstNTA = group.select('.nta-path').node();
-  const streetGroup = firstNTA
-    ? group.insert('g', '.nta-path').attr('class', 'street-grid osm-streets')
+  // Insert AFTER sub-paths but BEFORE labels so streets overlay neighborhoods
+  // but labels stay on top of everything
+  const firstLabel = group.select('.sub-label, .hood-label, .borough-label').node();
+  const streetGroup = firstLabel
+    ? group.insert('g', function() { return firstLabel; }).attr('class', 'street-grid osm-streets')
     : group.append('g').attr('class', 'street-grid osm-streets');
 
   streetGroup.selectAll('.street-line')
@@ -217,16 +219,18 @@ function renderOSMStreets(streetGeoJSON, pathFn, group) {
     .style('fill', 'none')
     .style('stroke', d => {
       const hw = d.properties.highway;
-      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.30)';
-      if (hw === 'primary') return 'rgba(255,255,255,0.22)';
-      if (hw === 'secondary') return 'rgba(255,255,255,0.16)';
-      return 'rgba(255,255,255,0.10)';
+      if (hw === 'motorway' || hw === 'trunk') return 'rgba(255,255,255,0.35)';
+      if (hw === 'primary') return 'rgba(255,255,255,0.28)';
+      if (hw === 'secondary') return 'rgba(255,255,255,0.20)';
+      if (hw === 'tertiary') return 'rgba(255,255,255,0.15)';
+      return 'rgba(255,255,255,0.12)';
     })
     .style('stroke-width', d => {
       const hw = d.properties.highway;
       if (hw === 'motorway' || hw === 'trunk') return 0.8;
       if (hw === 'primary') return 0.55;
-      if (hw === 'secondary' || hw === 'tertiary') return 0.35;
+      if (hw === 'secondary') return 0.4;
+      if (hw === 'tertiary') return 0.3;
       return 0.2;
     })
     .style('pointer-events', 'none');
@@ -553,7 +557,8 @@ function initHoodMap() {
       .style('stroke-width', 0.3);
 
     // Draw Manhattan street grid — try real OSM data first, fall back to mathematical grid
-    // Render fallback grid immediately (will be replaced if OSM fetch succeeds)
+    // NOTE: fallback grid renders early (behind neighborhoods). OSM streets
+    // will replace it and render ON TOP of neighborhood fills when loaded.
     const fallbackData = generateManhattanStreets();
     const streetGroup = mapGroup.append('g').attr('class', 'street-grid');
     streetGroup.selectAll('.street-line')
@@ -760,9 +765,9 @@ function initHoodMap() {
           .attr('data-sub-id', sub.id)
           .attr('data-nta', ntaCode)
           .style('fill', subFill)
-          .style('fill-opacity', 0.22)
-          .style('stroke', 'rgba(255,255,255,0.25)')
-          .style('stroke-width', 1.0)
+          .style('fill-opacity', 0.18)
+          .style('stroke', 'rgba(255,255,255,0.20)')
+          .style('stroke-width', 0.8)
           .style('cursor', 'pointer')
           .on('click', function(event) {
             event.stopPropagation();
@@ -804,7 +809,7 @@ function initHoodMap() {
             .attr('data-sub-id', sub.id)
             .attr('data-nta', ntaCode)
             .style('fill', subFill)
-            .style('fill-opacity', 0.22)
+            .style('fill-opacity', 0.18)
             .style('stroke', 'rgba(255,255,255,0.15)')
             .style('stroke-width', 0.5)
             .style('cursor', 'pointer')
@@ -852,7 +857,7 @@ function initHoodMap() {
               .attr('data-sub-id', sub.id)
               .attr('data-nta', ntaCode)
               .style('fill', subFill)
-              .style('fill-opacity', 0.22)
+              .style('fill-opacity', 0.18)
               .style('stroke', 'rgba(255,255,255,0.15)')
               .style('stroke-width', 0.5)
               .style('cursor', 'pointer')
@@ -1089,18 +1094,19 @@ function refreshMapColors() {
     const subFill = getNTAFill(entry.subId, hood.borough, Math.max(0, idx), Math.max(1, total));
 
     if (status === 'lived') {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.9)
+      entry.el.style('fill', subFill).style('fill-opacity', 0.7)
         .style('stroke', '#fff').style('stroke-width', 1.2);
     } else if (status === 'visited') {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.5)
+      entry.el.style('fill', subFill).style('fill-opacity', 0.4)
         .style('stroke', 'rgba(255,255,255,0.3)').style('stroke-width', 0.8);
     } else if (entry.el.classed('sub-path-overlapped')) {
-      // Lower-priority overlapping polygon — dimmed but still visible
-      entry.el.style('fill', subFill).style('fill-opacity', 0.12)
-        .style('stroke', 'rgba(255,255,255,0.12)').style('stroke-width', 0.5);
+      // Lower-priority overlapping polygon — translucent, streets show through
+      entry.el.style('fill', subFill).style('fill-opacity', 0.10)
+        .style('stroke', 'rgba(255,255,255,0.10)').style('stroke-width', 0.5);
     } else {
-      entry.el.style('fill', subFill).style('fill-opacity', 0.22)
-        .style('stroke', 'rgba(255,255,255,0.25)').style('stroke-width', 1.0);
+      // Default unvisited — translucent overlay, streets visible through fill
+      entry.el.style('fill', subFill).style('fill-opacity', 0.18)
+        .style('stroke', 'rgba(255,255,255,0.20)').style('stroke-width', 0.8);
     }
   });
 }
