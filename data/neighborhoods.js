@@ -105,7 +105,7 @@ const NEIGHBORHOODS = [
   { id: 'MN-BPC', name: 'Battery Park City', borough: 'manhattan', center: [40.7115, -74.0165], parent: 'MN0101' },
 
   // --- from MN0102: Tribeca-Civic Center ---
-  { id: 'MN-Tribeca', name: 'Tribeca', borough: 'manhattan', center: [40.7163, -74.0086], parent: 'MN0102' },
+  { id: 'MN-Tribeca', name: 'TriBeCa', borough: 'manhattan', center: [40.7163, -74.0086], parent: 'MN0102' },
   { id: 'MN-CivCtr', name: 'Civic Center', borough: 'manhattan', center: [40.7134, -74.0014], parent: 'MN0102' },
   { id: 'MN-RadioRow', name: 'Radio Row', borough: 'manhattan', center: [40.7118, -74.0130], parent: 'MN0102' },
 
@@ -113,7 +113,7 @@ const NEIGHBORHOODS = [
   { id: 'MN-SoHo', name: 'SoHo', borough: 'manhattan', center: [40.7233, -74.0030], parent: 'MN0201' },
   { id: 'MN-LittleItaly', name: 'Little Italy', borough: 'manhattan', center: [40.7191, -73.9973], parent: 'MN0201' },
   { id: 'MN-HudsonSq', name: 'Hudson Square', borough: 'manhattan', center: [40.7265, -74.0080], parent: 'MN0201' },
-  { id: 'MN-Nolita', name: 'Nolita', borough: 'manhattan', center: [40.7234, -73.9952], parent: 'MN0201' },
+  { id: 'MN-Nolita', name: 'NoLita', borough: 'manhattan', center: [40.7234, -73.9952], parent: 'MN0201' },
 
   // --- from MN0202: Greenwich Village ---
   { id: 'MN-GrnwchVlg', name: 'Greenwich Village', borough: 'manhattan', center: [40.7336, -73.9996], parent: 'MN0202' },
@@ -164,7 +164,7 @@ const NEIGHBORHOODS = [
   { id: 'MN-PeterCooper', name: 'Peter Cooper Village', borough: 'manhattan', center: [40.7350, -73.9760], parent: 'MN0601' },
 
   // --- from MN0602: Gramercy ---
-  { id: 'MN-Gramercy', name: 'Gramercy', borough: 'manhattan', center: [40.7374, -73.9838], parent: 'MN0602' },
+  { id: 'MN-Gramercy', name: 'Gramercy Park', borough: 'manhattan', center: [40.7374, -73.9838], parent: 'MN0602' },
   { id: 'MN-RoseHill', name: 'Rose Hill', borough: 'manhattan', center: [40.7420, -73.9820], parent: 'MN0602' },
 
   // --- from MN0603: Murray Hill-Kips Bay ---

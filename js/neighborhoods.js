@@ -277,9 +277,24 @@ function initHoodMap() {
       .on('mouseleave', hideHoodTooltip);
 
     // ─── Sub-neighborhood cells (real boundaries from locality.nyc) ────
-    // For each NTA that has subs, render real polygon boundaries if available,
-    // otherwise fall back to Voronoi tessellation
+    // For each NTA that has subs, render real polygon boundaries where available,
+    // and Voronoi tessellation for the remainder
     const hasLocality = typeof LOCALITY_BOUNDARIES !== 'undefined';
+
+    // Name aliases for micro-neighborhoods that map to locality.nyc entries
+    const LOCALITY_ALIASES = {
+      'Spanish Harlem': 'East Harlem',
+      'East Midtown': 'Midtown East',
+      'Midtown': 'Midtown Center',
+      'Times Square': 'Theater District',
+      'Herald Square': 'Koreatown',
+      'Columbus Circle': 'Lincoln Square',
+    };
+
+    function getLocalityBounds(name) {
+      if (!hasLocality) return null;
+      return LOCALITY_BOUNDARIES[name] || LOCALITY_BOUNDARIES[LOCALITY_ALIASES[name]] || null;
+    }
 
     ntaPaths.forEach(feature => {
       const ntaCode = feature.properties.ntaCode;
@@ -302,168 +317,166 @@ function initHoodMap() {
         ? rings[0].map(coord => hoodProjection(coord)).filter(p => p && !isNaN(p[0]))
         : [];
 
-      // Check if all subs have real locality boundaries
+      // Split subs into those with real locality boundaries vs those without
       const subsWithBounds = subs.map(sub => {
-        const lb = hasLocality ? LOCALITY_BOUNDARIES[sub.name] : null;
+        const lb = getLocalityBounds(sub.name);
         return { ...sub, localityBounds: lb };
       });
 
-      const allHaveLocality = subsWithBounds.every(s => s.localityBounds);
+      const realSubs = subsWithBounds.filter(s => s.localityBounds);
+      const voronoiSubs = subsWithBounds.filter(s => !s.localityBounds);
 
-      if (allHaveLocality) {
-        // ── Real polygon boundaries from locality.nyc ──
-        subsWithBounds.forEach((sub, i) => {
-          const lb = sub.localityBounds;
-          // Convert lat/lng polygon to GeoJSON and project via D3
-          const geoCoords = lb.polygon.map(p => [p[1], p[0]]); // [lng, lat]
-          geoCoords.push(geoCoords[0]); // close the ring
+      // ── Render real polygon boundaries from locality.nyc ──
+      realSubs.forEach((sub, i) => {
+        const lb = sub.localityBounds;
+        const geoCoords = lb.polygon.map(p => [p[1], p[0]]); // [lng, lat]
+        geoCoords.push(geoCoords[0]); // close the ring
 
-          const geoFeature = {
-            type: 'Feature',
-            geometry: { type: 'Polygon', coordinates: [geoCoords] },
-            properties: { name: sub.name }
-          };
+        const geoFeature = {
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [geoCoords] },
+          properties: { name: sub.name }
+        };
 
-          const pathD = hoodPath(geoFeature);
-          if (!pathD) return;
+        const pathD = hoodPath(geoFeature);
+        if (!pathD) return;
 
-          const subFill = getNTAFill(sub.id, sub.borough, i, subsWithBounds.length);
+        const subFill = getNTAFill(sub.id, sub.borough, i, subs.length);
 
-          mapGroup.append('path')
-            .attr('class', 'sub-path')
-            .attr('d', pathD)
-            .attr('data-sub-id', sub.id)
-            .attr('data-nta', ntaCode)
-            .style('fill', subFill)
-            .style('fill-opacity', 0.15)
-            .style('stroke', 'rgba(255,255,255,0.2)')
-            .style('stroke-width', 0.8)
-            .style('cursor', 'pointer')
-            .on('click', function(event) {
-              event.stopPropagation();
-              zoomToPoint(lb.center[0], lb.center[1], 12);
-              openHoodDetail(sub.id);
-            })
-            .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
-            .on('mouseleave', hideHoodTooltip);
+        mapGroup.append('path')
+          .attr('class', 'sub-path')
+          .attr('d', pathD)
+          .attr('data-sub-id', sub.id)
+          .attr('data-nta', ntaCode)
+          .style('fill', subFill)
+          .style('fill-opacity', 0.15)
+          .style('stroke', 'rgba(255,255,255,0.2)')
+          .style('stroke-width', 0.8)
+          .style('cursor', 'pointer')
+          .on('click', function(event) {
+            event.stopPropagation();
+            zoomToPoint(lb.center[0], lb.center[1], 12);
+            openHoodDetail(sub.id);
+          })
+          .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
+          .on('mouseleave', hideHoodTooltip);
 
-          // Label at centroid of the real polygon
-          const centroid = hoodPath.centroid(geoFeature);
-          if (centroid && !isNaN(centroid[0])) {
-            mapGroup.append('text')
-              .attr('class', 'sub-label')
-              .attr('x', centroid[0])
-              .attr('y', centroid[1])
-              .text(sub.name)
-              .style('font-size', '5.5px')
-              .style('fill', '#fff')
-              .style('font-family', 'Space Grotesk, sans-serif')
-              .style('font-weight', '600')
-              .style('text-anchor', 'middle')
-              .style('dominant-baseline', 'middle')
-              .style('pointer-events', 'none')
-              .style('opacity', 0)
-              .style('text-shadow', '0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)');
-          }
-        });
-      } else {
-        // ── Voronoi fallback for subs without locality data ──
-        if (projectedRing.length < 3) return;
+        // Label at centroid of the real polygon
+        const centroid = hoodPath.centroid(geoFeature);
+        if (centroid && !isNaN(centroid[0])) {
+          mapGroup.append('text')
+            .attr('class', 'sub-label')
+            .attr('x', centroid[0])
+            .attr('y', centroid[1])
+            .text(sub.name)
+            .style('font-size', '5.5px')
+            .style('fill', '#fff')
+            .style('font-family', 'Space Grotesk, sans-serif')
+            .style('font-weight', '600')
+            .style('text-anchor', 'middle')
+            .style('dominant-baseline', 'middle')
+            .style('pointer-events', 'none')
+            .style('opacity', 0)
+            .style('text-shadow', '0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)');
+        }
+      });
 
-        const subPoints = subs.map(sub => {
+      // ── Voronoi fallback for subs without locality data ──
+      if (voronoiSubs.length > 0 && projectedRing.length >= 3) {
+        const subPoints = voronoiSubs.map(sub => {
           const p = hoodProjection([sub.center[1], sub.center[0]]);
           return p && !isNaN(p[0]) ? { id: sub.id, name: sub.name, borough: sub.borough, point: p } : null;
         }).filter(Boolean);
-        if (subPoints.length === 0) return;
 
-        const xs = projectedRing.map(p => p[0]);
-        const ys = projectedRing.map(p => p[1]);
-        const bboxPad = 50;
-        const bbox = [
-          Math.min(...xs) - bboxPad, Math.min(...ys) - bboxPad,
-          Math.max(...xs) + bboxPad, Math.max(...ys) + bboxPad
-        ];
+        if (subPoints.length > 0) {
+          const xs = projectedRing.map(p => p[0]);
+          const ys = projectedRing.map(p => p[1]);
+          const bboxPad = 50;
+          const bbox = [
+            Math.min(...xs) - bboxPad, Math.min(...ys) - bboxPad,
+            Math.max(...xs) + bboxPad, Math.max(...ys) + bboxPad
+          ];
 
-        if (subPoints.length === 1) {
-          const sub = subPoints[0];
-          const subFill = getNTAFill(sub.id, sub.borough, 0, 1);
-          mapGroup.append('path')
-            .attr('class', 'sub-path')
-            .attr('d', hoodPath(feature))
-            .attr('data-sub-id', sub.id)
-            .attr('data-nta', ntaCode)
-            .style('fill', subFill)
-            .style('fill-opacity', 0.15)
-            .style('stroke', 'rgba(255,255,255,0.2)')
-            .style('stroke-width', 0.8)
-            .style('cursor', 'pointer')
-            .on('click', function(event) {
-              event.stopPropagation();
-              zoomToFeature(feature);
-              openHoodDetail(sub.id);
-            })
-            .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
-            .on('mouseleave', hideHoodTooltip);
+          if (subPoints.length === 1) {
+            const sub = subPoints[0];
+            const subFill = getNTAFill(sub.id, sub.borough, realSubs.length, subs.length);
+            mapGroup.append('path')
+              .attr('class', 'sub-path')
+              .attr('d', hoodPath(feature))
+              .attr('data-sub-id', sub.id)
+              .attr('data-nta', ntaCode)
+              .style('fill', subFill)
+              .style('fill-opacity', 0.15)
+              .style('stroke', 'rgba(255,255,255,0.2)')
+              .style('stroke-width', 0.8)
+              .style('cursor', 'pointer')
+              .on('click', function(event) {
+                event.stopPropagation();
+                zoomToFeature(feature);
+                openHoodDetail(sub.id);
+              })
+              .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
+              .on('mouseleave', hideHoodTooltip);
 
-          const centroid = hoodPath.centroid(feature);
-          if (centroid && !isNaN(centroid[0])) {
-            mapGroup.append('text')
-              .attr('class', 'sub-label')
-              .attr('x', centroid[0]).attr('y', centroid[1])
-              .text(sub.name)
-              .style('font-size', '5.5px').style('fill', '#fff')
-              .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '600')
-              .style('text-anchor', 'middle').style('pointer-events', 'none').style('opacity', 0);
+            const centroid = hoodPath.centroid(feature);
+            if (centroid && !isNaN(centroid[0])) {
+              mapGroup.append('text')
+                .attr('class', 'sub-label')
+                .attr('x', centroid[0]).attr('y', centroid[1])
+                .text(sub.name)
+                .style('font-size', '5.5px').style('fill', '#fff')
+                .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '600')
+                .style('text-anchor', 'middle').style('pointer-events', 'none').style('opacity', 0);
+            }
+          } else {
+            const delaunay = d3.Delaunay.from(subPoints, d => d.point[0], d => d.point[1]);
+            const voronoi = delaunay.voronoi(bbox);
+
+            subPoints.forEach((sub, i) => {
+              const cellPoly = voronoi.cellPolygon(i);
+              if (!cellPoly || cellPoly.length < 3) return;
+              const clipped = clipPolygon(cellPoly, projectedRing);
+              if (clipped.length < 3) return;
+              const pathD = polygonToSVGPath(clipped);
+              if (!pathD) return;
+
+              const subFill = getNTAFill(sub.id, sub.borough, realSubs.length + i, subs.length);
+              mapGroup.append('path')
+                .attr('class', 'sub-path')
+                .attr('d', pathD)
+                .attr('data-sub-id', sub.id)
+                .attr('data-nta', ntaCode)
+                .style('fill', subFill)
+                .style('fill-opacity', 0.15)
+                .style('stroke', 'rgba(255,255,255,0.2)')
+                .style('stroke-width', 0.8)
+                .style('cursor', 'pointer')
+                .on('click', function(event) {
+                  event.stopPropagation();
+                  zoomToFeature(feature);
+                  setTimeout(() => zoomToPoint(
+                    NEIGHBORHOODS.find(h => h.id === sub.id).center[0],
+                    NEIGHBORHOODS.find(h => h.id === sub.id).center[1], 10
+                  ), 800);
+                  openHoodDetail(sub.id);
+                })
+                .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
+                .on('mouseleave', hideHoodTooltip);
+
+              const cx = clipped.reduce((s, p) => s + p[0], 0) / clipped.length;
+              const cy = clipped.reduce((s, p) => s + p[1], 0) / clipped.length;
+              mapGroup.append('text')
+                .attr('class', 'sub-label')
+                .attr('x', cx).attr('y', cy)
+                .text(sub.name)
+                .style('font-size', '5.5px').style('fill', '#fff')
+                .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '600')
+                .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
+                .style('pointer-events', 'none').style('opacity', 0)
+                .style('text-shadow', '0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)');
+            });
           }
-          return;
         }
-
-        const delaunay = d3.Delaunay.from(subPoints, d => d.point[0], d => d.point[1]);
-        const voronoi = delaunay.voronoi(bbox);
-
-        subPoints.forEach((sub, i) => {
-          const cellPoly = voronoi.cellPolygon(i);
-          if (!cellPoly || cellPoly.length < 3) return;
-          const clipped = clipPolygon(cellPoly, projectedRing);
-          if (clipped.length < 3) return;
-          const pathD = polygonToSVGPath(clipped);
-          if (!pathD) return;
-
-          const subFill = getNTAFill(sub.id, sub.borough, i, subPoints.length);
-          mapGroup.append('path')
-            .attr('class', 'sub-path')
-            .attr('d', pathD)
-            .attr('data-sub-id', sub.id)
-            .attr('data-nta', ntaCode)
-            .style('fill', subFill)
-            .style('fill-opacity', 0.15)
-            .style('stroke', 'rgba(255,255,255,0.2)')
-            .style('stroke-width', 0.8)
-            .style('cursor', 'pointer')
-            .on('click', function(event) {
-              event.stopPropagation();
-              zoomToFeature(feature);
-              setTimeout(() => zoomToPoint(
-                NEIGHBORHOODS.find(h => h.id === sub.id).center[0],
-                NEIGHBORHOODS.find(h => h.id === sub.id).center[1], 10
-              ), 800);
-              openHoodDetail(sub.id);
-            })
-            .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
-            .on('mouseleave', hideHoodTooltip);
-
-          const cx = clipped.reduce((s, p) => s + p[0], 0) / clipped.length;
-          const cy = clipped.reduce((s, p) => s + p[1], 0) / clipped.length;
-          mapGroup.append('text')
-            .attr('class', 'sub-label')
-            .attr('x', cx).attr('y', cy)
-            .text(sub.name)
-            .style('font-size', '5.5px').style('fill', '#fff')
-            .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '600')
-            .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
-            .style('pointer-events', 'none').style('opacity', 0)
-            .style('text-shadow', '0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)');
-        });
       }
     });
 
