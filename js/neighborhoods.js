@@ -148,10 +148,10 @@ function initHoodMap() {
       mapGroup.attr('transform', event.transform);
       const k = event.transform.k;
 
-      // Scale NTA labels — fade out as sub-labels take over
+      // Scale NTA labels (non-sub NTAs)
+      const hoodFontSize = Math.max(2, 4.5 / k);
       mapGroup.selectAll('.hood-label')
-        .style('font-size', Math.max(2.5, 5 / k) + 'px')
-        .style('opacity', k > 3.5 ? 0 : Math.min(0.5, 0.5 / Math.max(1, k * 0.5)));
+        .style('font-size', hoodFontSize + 'px');
 
       // Scale strokes
       mapGroup.selectAll('.nta-path:not(.park-path)')
@@ -165,33 +165,33 @@ function initHoodMap() {
       mapGroup.selectAll('.sub-path')
         .style('stroke-width', Math.max(0.15, 0.4 / k));
 
-      // Sub labels — appear when zoomed, hide overlapping ones
-      const fontSize = Math.max(1.8, 3.5 / k);
-      const baseOpacity = k > 2.5 ? Math.min(0.95, (k - 2.5) * 0.35) : 0;
-      if (baseOpacity > 0) {
-        const placed = [];
-        const padding = 2; // extra px margin between labels
-        mapGroup.selectAll('.sub-label').each(function() {
-          const el = d3.select(this);
-          const x = +el.attr('x') * k + event.transform.x;
-          const y = +el.attr('y') * k + event.transform.y;
-          const textLen = el.text().length * fontSize * k * 0.36 + padding * 2;
-          const h = fontSize * k * 0.9 + padding * 2;
-          const box = { x: x - textLen / 2, y: y - h / 2, w: textLen, h: h };
-          const overlaps = placed.some(p =>
-            box.x < p.x + p.w && box.x + box.w > p.x &&
-            box.y < p.y + p.h && box.y + box.h > p.y
-          );
-          if (overlaps) {
-            el.style('opacity', 0);
-          } else {
-            el.style('opacity', baseOpacity).style('font-size', fontSize + 'px');
-            placed.push(box);
-          }
-        });
-      } else {
-        mapGroup.selectAll('.sub-label').style('opacity', 0);
-      }
+      // All labels — collision detection to hide overlapping ones
+      const subFontSize = Math.max(1.5, 3 / k);
+      mapGroup.selectAll('.sub-label')
+        .style('font-size', subFontSize + 'px');
+
+      // Run collision detection on ALL labels (hood-label + sub-label)
+      const placed = [];
+      const padding = 1.5;
+      mapGroup.selectAll('.hood-label, .sub-label').each(function() {
+        const el = d3.select(this);
+        const x = +el.attr('x') * k + event.transform.x;
+        const y = +el.attr('y') * k + event.transform.y;
+        const fs = parseFloat(el.style('font-size')) || 3;
+        const textLen = el.text().length * fs * k * 0.36 + padding * 2;
+        const h = fs * k * 0.9 + padding * 2;
+        const box = { x: x - textLen / 2, y: y - h / 2, w: textLen, h: h };
+        const overlaps = placed.some(p =>
+          box.x < p.x + p.w && box.x + box.w > p.x &&
+          box.y < p.y + p.h && box.y + box.h > p.y
+        );
+        if (overlaps) {
+          el.style('opacity', 0);
+        } else {
+          el.style('opacity', 0.8);
+          placed.push(box);
+        }
+      });
 
       // Borough labels
       mapGroup.selectAll('.borough-label')
@@ -355,38 +355,23 @@ function initHoodMap() {
       .on('mouseleave', hideHoodTooltip);
 
     // ─── Sub-neighborhood Voronoi cells ────
-    // For each NTA with subs, use Voronoi tessellation clipped to the NTA
-    // boundary. Every pixel belongs to exactly one sub-neighborhood.
-    // No overlaps, no gaps, full coverage.
+    // For each NTA with subs, generate Voronoi cells from sub center points
+    // and clip them to the NTA boundary using SVG <clipPath> (which handles
+    // MultiPolygon correctly via D3's geoPath — no manual polygon clipping).
+
+    const defs = hoodSvg.append('defs');
 
     ntaPaths.forEach(feature => {
       const ntaCode = feature.properties.ntaCode;
       const subs = getSubsForNTA(ntaCode);
       if (subs.length === 0) return;
 
-      // Get the NTA boundary as projected polygon points
-      const geom = feature.geometry;
-      let rings = [];
-      if (geom.type === 'Polygon') {
-        rings = [geom.coordinates[0]];
-      } else if (geom.type === 'MultiPolygon') {
-        let maxLen = 0;
-        geom.coordinates.forEach(poly => {
-          if (poly[0].length > maxLen) { maxLen = poly[0].length; rings = [poly[0]]; }
-        });
-      }
-
-      let projectedRing = rings.length > 0
-        ? rings[0].map(coord => hoodProjection(coord)).filter(p => p && !isNaN(p[0]))
-        : [];
-      if (projectedRing.length < 3) return;
-
-      // Ensure clockwise winding for Sutherland-Hodgman clipping
-      let ringArea = 0;
-      for (let i = 0; i < projectedRing.length - 1; i++) {
-        ringArea += (projectedRing[i+1][0] - projectedRing[i][0]) * (projectedRing[i+1][1] + projectedRing[i][1]);
-      }
-      if (ringArea < 0) projectedRing.reverse();
+      // Create an SVG clipPath from the NTA boundary (handles MultiPolygon)
+      const clipId = 'clip-' + ntaCode;
+      defs.append('clipPath')
+        .attr('id', clipId)
+        .append('path')
+        .attr('d', hoodPath(feature));
 
       // Project sub-neighborhood center points
       const subPoints = subs.map(sub => {
@@ -395,11 +380,15 @@ function initHoodMap() {
       }).filter(Boolean);
       if (subPoints.length === 0) return;
 
+      // Create a group clipped to the NTA boundary
+      const subGroup = mapGroup.append('g')
+        .attr('clip-path', `url(#${clipId})`);
+
       // Single sub — just use the NTA boundary as its shape
       if (subPoints.length === 1) {
         const sub = subPoints[0];
         const subFill = getNTAFill(sub.id, sub.borough, 0, 1);
-        mapGroup.append('path')
+        subGroup.append('path')
           .attr('class', 'sub-path')
           .attr('d', hoodPath(feature))
           .attr('data-sub-id', sub.id)
@@ -423,22 +412,21 @@ function initHoodMap() {
             .attr('class', 'sub-label')
             .attr('x', centroid[0]).attr('y', centroid[1])
             .text(sub.name)
-            .style('font-size', '3.5px').style('fill', 'rgba(255,255,255,0.9)')
+            .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
             .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
             .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
-            .style('pointer-events', 'none').style('opacity', 0)
-            .style('text-shadow', '0 0 4px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)');
+            .style('pointer-events', 'none')
+            .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
         }
         return;
       }
 
-      // Multiple subs — Voronoi tessellation clipped to NTA boundary
-      const xs = projectedRing.map(p => p[0]);
-      const ys = projectedRing.map(p => p[1]);
-      const bboxPad = 50;
+      // Multiple subs — Voronoi tessellation, SVG-clipped to NTA boundary
+      const bounds = hoodPath.bounds(feature);
+      const bboxPad = 60;
       const bbox = [
-        Math.min(...xs) - bboxPad, Math.min(...ys) - bboxPad,
-        Math.max(...xs) + bboxPad, Math.max(...ys) + bboxPad
+        bounds[0][0] - bboxPad, bounds[0][1] - bboxPad,
+        bounds[1][0] + bboxPad, bounds[1][1] + bboxPad
       ];
 
       const delaunay = d3.Delaunay.from(subPoints, d => d.point[0], d => d.point[1]);
@@ -447,13 +435,11 @@ function initHoodMap() {
       subPoints.forEach((sub, i) => {
         const cellPoly = voronoi.cellPolygon(i);
         if (!cellPoly || cellPoly.length < 3) return;
-        const clipped = clipPolygon(cellPoly, projectedRing);
-        if (clipped.length < 3) return;
-        const pathD = polygonToSVGPath(clipped);
+        const pathD = polygonToSVGPath(cellPoly);
         if (!pathD) return;
 
         const subFill = getNTAFill(sub.id, sub.borough, i, subPoints.length);
-        mapGroup.append('path')
+        subGroup.append('path')
           .attr('class', 'sub-path')
           .attr('d', pathD)
           .attr('data-sub-id', sub.id)
@@ -471,18 +457,16 @@ function initHoodMap() {
           .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
           .on('mouseleave', hideHoodTooltip);
 
-        // Label at centroid of the clipped Voronoi cell
-        const cx = clipped.reduce((s, p) => s + p[0], 0) / clipped.length;
-        const cy = clipped.reduce((s, p) => s + p[1], 0) / clipped.length;
+        // Label at the sub's projected center point
         mapGroup.append('text')
           .attr('class', 'sub-label')
-          .attr('x', cx).attr('y', cy)
+          .attr('x', sub.point[0]).attr('y', sub.point[1])
           .text(sub.name)
-          .style('font-size', '3.5px').style('fill', 'rgba(255,255,255,0.9)')
+          .style('font-size', '3px').style('fill', 'rgba(255,255,255,0.85)')
           .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
           .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
-          .style('pointer-events', 'none').style('opacity', 0)
-          .style('text-shadow', '0 0 4px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)');
+          .style('pointer-events', 'none')
+          .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
       });
     });
 
@@ -500,8 +484,15 @@ function initHoodMap() {
         .attr('x', centroid[0])
         .attr('y', centroid[1])
         .text(shortName)
-        .style('font-size', '6px')
-        .style('pointer-events', 'none');
+        .style('font-size', '4.5px')
+        .style('fill', 'rgba(255,255,255,0.85)')
+        .style('font-family', 'Space Grotesk, sans-serif')
+        .style('font-weight', '500')
+        .style('text-anchor', 'middle')
+        .style('dominant-baseline', 'middle')
+        .style('pointer-events', 'none')
+        .style('opacity', 0.8)
+        .style('text-shadow', '0 0 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9)');
     });
 
     // Borough name labels
