@@ -51,19 +51,15 @@
   pointer-events: none;
 }
 
-/* Sub-neighborhood clickable regions */
+/* Sub-neighborhood Voronoi cells */
 .sub-path {
   cursor: pointer;
-  transition: fill 0.15s;
+  transition: fill-opacity 0.15s, stroke 0.15s;
 }
 
 .sub-path:hover {
-  fill: rgba(255,255,255,0.15) !important;
-}
-
-/* Sub-neighborhood divider lines */
-.sub-divider {
-  pointer-events: none;
+  fill-opacity: 0.5 !important;
+  stroke: rgba(255,255,255,0.5) !important;
 }
 
 .sub-label {

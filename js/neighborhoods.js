@@ -161,9 +161,9 @@ function initHoodMap() {
       mapGroup.selectAll('.bg-path')
         .style('stroke-width', 0.3 / k);
 
-      // Sub-neighborhood divider lines
-      mapGroup.selectAll('.sub-divider')
-        .style('stroke-width', Math.max(0.15, 0.5 / k));
+      // Sub-neighborhood cell strokes
+      mapGroup.selectAll('.sub-path')
+        .style('stroke-width', Math.max(0.15, 0.4 / k));
 
       // Sub labels — appear when zoomed, hide overlapping ones
       const fontSize = Math.max(1.8, 3.5 / k);
@@ -354,102 +354,128 @@ function initHoodMap() {
       })
       .on('mouseleave', hideHoodTooltip);
 
-    // ─── Sub-neighborhood divider lines from locality.nyc ────
-    // NTA fills provide full coverage. Locality boundaries are drawn as
-    // stroke-only divider lines clipped to the parent NTA, plus invisible
-    // click regions for each sub-neighborhood.
-    const hasLocality = typeof LOCALITY_BOUNDARIES !== 'undefined';
-
-    const LOCALITY_ALIASES = {
-      'Spanish Harlem': 'East Harlem',
-      'East Midtown': 'Midtown East',
-      'Midtown': 'Midtown Center',
-      'Times Square': 'Theater District',
-    };
-
-    function getLocalityBounds(name) {
-      if (!hasLocality) return null;
-      return LOCALITY_BOUNDARIES[name] || LOCALITY_BOUNDARIES[LOCALITY_ALIASES[name]] || null;
-    }
-
-    // Create a <defs> for clipPaths
-    const defs = mapGroup.append('defs');
+    // ─── Sub-neighborhood Voronoi cells ────
+    // For each NTA with subs, use Voronoi tessellation clipped to the NTA
+    // boundary. Every pixel belongs to exactly one sub-neighborhood.
+    // No overlaps, no gaps, full coverage.
 
     ntaPaths.forEach(feature => {
       const ntaCode = feature.properties.ntaCode;
       const subs = getSubsForNTA(ntaCode);
       if (subs.length === 0) return;
 
-      // Create clipPath from NTA boundary
-      const clipId = 'clip-' + ntaCode;
-      defs.append('clipPath')
-        .attr('id', clipId)
-        .append('path')
-        .attr('d', hoodPath(feature));
+      // Get the NTA boundary as projected polygon points
+      const geom = feature.geometry;
+      let rings = [];
+      if (geom.type === 'Polygon') {
+        rings = [geom.coordinates[0]];
+      } else if (geom.type === 'MultiPolygon') {
+        let maxLen = 0;
+        geom.coordinates.forEach(poly => {
+          if (poly[0].length > maxLen) { maxLen = poly[0].length; rings = [poly[0]]; }
+        });
+      }
 
-      subs.forEach((sub, i) => {
-        const lb = getLocalityBounds(sub.name);
-        if (!lb) return; // skip subs without locality data
+      const projectedRing = rings.length > 0
+        ? rings[0].map(coord => hoodProjection(coord)).filter(p => p && !isNaN(p[0]))
+        : [];
+      if (projectedRing.length < 3) return;
 
-        const geoCoords = lb.polygon.map(p => [p[1], p[0]]); // [lng, lat]
-        geoCoords.push(geoCoords[0]); // close the ring
-        geoCoords.reverse(); // clockwise winding for D3
+      // Project sub-neighborhood center points
+      const subPoints = subs.map(sub => {
+        const p = hoodProjection([sub.center[1], sub.center[0]]);
+        return p && !isNaN(p[0]) ? { ...sub, point: p } : null;
+      }).filter(Boolean);
+      if (subPoints.length === 0) return;
 
-        const geoFeature = {
-          type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: [geoCoords] },
-          properties: { name: sub.name }
-        };
-
-        const pathD = hoodPath(geoFeature);
-        if (!pathD) return;
-
-        // Invisible clickable fill region (clipped to NTA)
+      // Single sub — just use the NTA boundary as its shape
+      if (subPoints.length === 1) {
+        const sub = subPoints[0];
+        const subFill = getNTAFill(sub.id, sub.borough, 0, 1);
         mapGroup.append('path')
           .attr('class', 'sub-path')
-          .attr('d', pathD)
+          .attr('d', hoodPath(feature))
           .attr('data-sub-id', sub.id)
           .attr('data-nta', ntaCode)
-          .attr('clip-path', 'url(#' + clipId + ')')
-          .style('fill', 'transparent')
-          .style('stroke', 'none')
+          .style('fill', subFill)
+          .style('fill-opacity', 0.22)
+          .style('stroke', 'rgba(255,255,255,0.12)')
+          .style('stroke-width', 0.4)
           .style('cursor', 'pointer')
           .on('click', function(event) {
             event.stopPropagation();
-            zoomToPoint(lb.center[0], lb.center[1], 12);
+            zoomToFeature(feature);
             openHoodDetail(sub.id);
           })
           .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
           .on('mouseleave', hideHoodTooltip);
 
-        // Visible boundary line (clipped to NTA) — stroke only, no fill
-        mapGroup.append('path')
-          .attr('class', 'sub-divider')
-          .attr('d', pathD)
-          .attr('clip-path', 'url(#' + clipId + ')')
-          .style('fill', 'none')
-          .style('stroke', 'rgba(255,255,255,0.25)')
-          .style('stroke-width', 0.5)
-          .style('pointer-events', 'none');
-
-        // Label at centroid
-        const centroid = hoodPath.centroid(geoFeature);
+        const centroid = hoodPath.centroid(feature);
         if (centroid && !isNaN(centroid[0])) {
           mapGroup.append('text')
             .attr('class', 'sub-label')
-            .attr('x', centroid[0])
-            .attr('y', centroid[1])
+            .attr('x', centroid[0]).attr('y', centroid[1])
             .text(sub.name)
-            .style('font-size', '3.5px')
-            .style('fill', 'rgba(255,255,255,0.9)')
-            .style('font-family', 'Space Grotesk, sans-serif')
-            .style('font-weight', '500')
-            .style('text-anchor', 'middle')
-            .style('dominant-baseline', 'middle')
-            .style('pointer-events', 'none')
-            .style('opacity', 0)
+            .style('font-size', '3.5px').style('fill', 'rgba(255,255,255,0.9)')
+            .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
+            .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
+            .style('pointer-events', 'none').style('opacity', 0)
             .style('text-shadow', '0 0 4px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)');
         }
+        return;
+      }
+
+      // Multiple subs — Voronoi tessellation clipped to NTA boundary
+      const xs = projectedRing.map(p => p[0]);
+      const ys = projectedRing.map(p => p[1]);
+      const bboxPad = 50;
+      const bbox = [
+        Math.min(...xs) - bboxPad, Math.min(...ys) - bboxPad,
+        Math.max(...xs) + bboxPad, Math.max(...ys) + bboxPad
+      ];
+
+      const delaunay = d3.Delaunay.from(subPoints, d => d.point[0], d => d.point[1]);
+      const voronoi = delaunay.voronoi(bbox);
+
+      subPoints.forEach((sub, i) => {
+        const cellPoly = voronoi.cellPolygon(i);
+        if (!cellPoly || cellPoly.length < 3) return;
+        const clipped = clipPolygon(cellPoly, projectedRing);
+        if (clipped.length < 3) return;
+        const pathD = polygonToSVGPath(clipped);
+        if (!pathD) return;
+
+        const subFill = getNTAFill(sub.id, sub.borough, i, subPoints.length);
+        mapGroup.append('path')
+          .attr('class', 'sub-path')
+          .attr('d', pathD)
+          .attr('data-sub-id', sub.id)
+          .attr('data-nta', ntaCode)
+          .style('fill', subFill)
+          .style('fill-opacity', 0.22)
+          .style('stroke', 'rgba(255,255,255,0.12)')
+          .style('stroke-width', 0.4)
+          .style('cursor', 'pointer')
+          .on('click', function(event) {
+            event.stopPropagation();
+            zoomToPoint(sub.center[0], sub.center[1], 10);
+            openHoodDetail(sub.id);
+          })
+          .on('mouseenter', function(event) { showHoodTooltip(event, sub.id); })
+          .on('mouseleave', hideHoodTooltip);
+
+        // Label at centroid of the clipped Voronoi cell
+        const cx = clipped.reduce((s, p) => s + p[0], 0) / clipped.length;
+        const cy = clipped.reduce((s, p) => s + p[1], 0) / clipped.length;
+        mapGroup.append('text')
+          .attr('class', 'sub-label')
+          .attr('x', cx).attr('y', cy)
+          .text(sub.name)
+          .style('font-size', '3.5px').style('fill', 'rgba(255,255,255,0.9)')
+          .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
+          .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
+          .style('pointer-events', 'none').style('opacity', 0)
+          .style('text-shadow', '0 0 4px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)');
       });
     });
 
