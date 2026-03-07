@@ -121,9 +121,9 @@ function refreshMapColors() {
     if (status === 'lived') {
       el.style('fill', color).style('fill-opacity', 1).style('stroke', '#fff').style('stroke-width', 1.5);
     } else if (status === 'visited') {
-      el.style('fill', color).style('fill-opacity', 0.55).style('stroke', 'rgba(255,255,255,0.3)').style('stroke-width', 1);
+      el.style('fill', color).style('fill-opacity', 0.45).style('stroke', 'rgba(255,255,255,0.4)').style('stroke-width', 1);
     } else {
-      el.style('fill', 'rgba(255,255,255,0.08)').style('fill-opacity', 1).style('stroke', 'rgba(255,255,255,0.12)').style('stroke-width', 0.5);
+      el.style('fill', '#1a1a1a').style('fill-opacity', 1).style('stroke', 'rgba(255,255,255,0.15)').style('stroke-width', 0.75);
     }
   });
 
