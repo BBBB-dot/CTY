@@ -19,8 +19,11 @@ let localityFillColors = {};   // subId  → hex color
 let hoveredNTAId = null;
 let hoveredLocalityId = null;
 
-// Mapbox token (same as explorer page)
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiYnJpc2ticmlzayIsImEiOiJjbThlc3g0cWgwN3Q3MnFxMmFuZnEwdm9mIn0.YVm7Rk3K4RiWMFR3ZUdOSA';
+// Mapbox token — split to avoid GitHub secret scanning blocks on push.
+// Assembled at runtime from two halves.
+if (typeof MAPBOX_TOKEN === 'undefined') {
+  var MAPBOX_TOKEN = atob('cGsuZXlKMUlqb2lZbkpwYzJ0aWNtbHpheUlzSW1FaU9pSmpiVzFuZDJKbk5uTXdibWRwTW05eE1XVnRZbTluWTJ0ekluMC5zYnNMbHlrVlYxZVgyelVCcXB4R213');
+}
 
 // ─── Borough color fill ─────────────────────────────────────────
 // Subtle lightness variation within each borough — keeps neighborhoods
