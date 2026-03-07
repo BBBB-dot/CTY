@@ -163,10 +163,32 @@ function initHoodMap() {
       mapGroup.selectAll('.sub-path')
         .style('stroke-width', Math.max(0.2, 0.6 / k));
 
-      // Sub labels — appear when zoomed in past NTA level
-      mapGroup.selectAll('.sub-label')
-        .style('opacity', k > 2.5 ? Math.min(0.95, (k - 2.5) * 0.4) : 0)
-        .style('font-size', Math.max(2, 4.5 / k) + 'px');
+      // Sub labels — appear when zoomed, hide overlapping ones
+      const fontSize = Math.max(2, 4.5 / k);
+      const baseOpacity = k > 2.5 ? Math.min(0.95, (k - 2.5) * 0.4) : 0;
+      if (baseOpacity > 0) {
+        const placed = [];
+        mapGroup.selectAll('.sub-label').each(function() {
+          const el = d3.select(this);
+          const x = +el.attr('x') * k + event.transform.x;
+          const y = +el.attr('y') * k + event.transform.y;
+          const textLen = el.text().length * fontSize * k * 0.38;
+          const h = fontSize * k * 0.8;
+          const box = { x: x - textLen / 2, y: y - h / 2, w: textLen, h: h };
+          const overlaps = placed.some(p =>
+            box.x < p.x + p.w && box.x + box.w > p.x &&
+            box.y < p.y + p.h && box.y + box.h > p.y
+          );
+          if (overlaps) {
+            el.style('opacity', 0);
+          } else {
+            el.style('opacity', baseOpacity).style('font-size', fontSize + 'px');
+            placed.push(box);
+          }
+        });
+      } else {
+        mapGroup.selectAll('.sub-label').style('opacity', 0);
+      }
 
       // Borough labels
       mapGroup.selectAll('.borough-label')
@@ -384,15 +406,15 @@ function initHoodMap() {
             .attr('x', centroid[0])
             .attr('y', centroid[1])
             .text(sub.name)
-            .style('font-size', '5.5px')
-            .style('fill', '#fff')
+            .style('font-size', '4px')
+            .style('fill', 'rgba(255,255,255,0.9)')
             .style('font-family', 'Space Grotesk, sans-serif')
-            .style('font-weight', '600')
+            .style('font-weight', '500')
             .style('text-anchor', 'middle')
             .style('dominant-baseline', 'middle')
             .style('pointer-events', 'none')
             .style('opacity', 0)
-            .style('text-shadow', '0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)');
+            .style('text-shadow', '0 0 4px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)');
         }
       });
 
@@ -484,11 +506,11 @@ function initHoodMap() {
                 .attr('class', 'sub-label')
                 .attr('x', cx).attr('y', cy)
                 .text(sub.name)
-                .style('font-size', '5.5px').style('fill', '#fff')
-                .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '600')
+                .style('font-size', '4px').style('fill', 'rgba(255,255,255,0.9)')
+                .style('font-family', 'Space Grotesk, sans-serif').style('font-weight', '500')
                 .style('text-anchor', 'middle').style('dominant-baseline', 'middle')
                 .style('pointer-events', 'none').style('opacity', 0)
-                .style('text-shadow', '0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)');
+                .style('text-shadow', '0 0 4px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.9)');
             });
           }
         }

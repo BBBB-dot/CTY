@@ -66,9 +66,6 @@
 
 .sub-label {
   transition: opacity 0.3s;
-  paint-order: stroke fill;
-  stroke: rgba(0,0,0,0.7);
-  stroke-width: 2px;
 }
 
 /* Legacy class — keep for compatibility */
