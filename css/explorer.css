@@ -1,0 +1,457 @@
+/* ============================================
+   CTY - Explorer (Map) Page Stylesheet
+   ============================================ */
+
+/* ============================================
+   EXPLORER LAYOUT
+   ============================================ */
+
+.explorer-layout {
+  width: 100%;
+  height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.explorer-map-card {
+  flex: 1;
+  background: var(--surface);
+  border-radius: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.mapboxgl-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================
+   EXPLORER TOOLBAR
+   ============================================ */
+
+.explorer-toolbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow-x: auto;
+  z-index: 5;
+}
+
+.explorer-toolbar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.explorer-toolbar::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 2px;
+}
+
+.explorer-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.explorer-filters .filter-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.explorer-toolbar-label {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   EXPLORER POPUP
+   ============================================ */
+
+.explorer-popup {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 10;
+  width: 300px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  animation: popupSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes popupSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ep-header {
+  min-height: 70px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(255, 20, 147, 0.1), rgba(0, 217, 255, 0.1));
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.ep-header.restaurant {
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.15), rgba(255, 140, 66, 0.1));
+}
+
+.ep-header.attraction {
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.15), rgba(57, 255, 20, 0.1));
+}
+
+.ep-header.landmark {
+  background: linear-gradient(135deg, rgba(255, 20, 147, 0.15), rgba(188, 19, 254, 0.1));
+}
+
+.ep-body {
+  padding: 16px;
+}
+
+.ep-name {
+  font-family: 'Syne', serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.ep-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ep-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ep-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  margin-top: 8px;
+}
+
+.ep-tags span {
+  font-size: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  padding: 4px 8px;
+  border-radius: 10px;
+  text-transform: capitalize;
+}
+
+.ep-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.ep-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ep-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ep-btn.visit {
+  background: var(--neon-manhattan);
+  color: #000;
+  box-shadow: 0 0 12px rgba(255, 20, 147, 0.3);
+}
+
+.ep-btn.visit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 16px rgba(255, 20, 147, 0.5);
+}
+
+.ep-btn.visit.visited {
+  background: var(--neon-queens);
+  color: #000;
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.3);
+}
+
+.ep-btn.fav {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+
+.ep-btn.fav:hover {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+.ep-btn.fav.favorited {
+  background: var(--surface-2);
+  color: var(--neon-manhattan);
+  border-color: var(--neon-manhattan);
+}
+
+/* ============================================
+   MAPBOX MARKER OVERRIDES
+   ============================================ */
+
+.cty-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+.cty-marker:hover {
+  transform: scale(1.5);
+  z-index: 10;
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.cty-marker.restaurant {
+  background: #FF6B35;
+  border-color: #FF6B35;
+  box-shadow: 0 0 8px rgba(255, 107, 53, 0.5);
+}
+
+.cty-marker.restaurant:hover {
+  box-shadow: 0 0 16px rgba(255, 107, 53, 0.7);
+}
+
+.cty-marker.attraction {
+  background: var(--neon-brooklyn);
+  border-color: var(--neon-brooklyn);
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+}
+
+.cty-marker.attraction:hover {
+  box-shadow: 0 0 16px rgba(0, 217, 255, 0.7);
+}
+
+.cty-marker.landmark {
+  background: var(--neon-bronx);
+  border-color: var(--neon-bronx);
+  box-shadow: 0 0 8px rgba(188, 19, 254, 0.5);
+}
+
+.cty-marker.landmark:hover {
+  box-shadow: 0 0 16px rgba(188, 19, 254, 0.7);
+}
+
+.cty-marker.visited {
+  background: var(--neon-queens);
+  border-color: var(--neon-queens);
+  box-shadow: 0 0 12px var(--neon-queens);
+}
+
+.cty-marker.visited:hover {
+  box-shadow: 0 0 20px var(--neon-queens);
+}
+
+.cty-marker-label {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  display: none;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 20;
+}
+
+.mapboxgl-map[data-zoom-high] .cty-marker-label {
+  display: block;
+}
+
+/* ============================================
+   MAPBOX CONTROL CUSTOMIZATION
+   ============================================ */
+
+.mapboxgl-ctrl {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.mapboxgl-ctrl button {
+  background: transparent;
+  color: var(--text);
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.mapboxgl-ctrl button:hover {
+  background: var(--surface-2);
+  color: var(--neon-manhattan);
+}
+
+.mapboxgl-ctrl-group {
+  box-shadow: none;
+}
+
+.mapboxgl-ctrl-group button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mapboxgl-ctrl-group button:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============================================
+   POPUP STATE INDICATOR
+   ============================================ */
+
+.popup-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.popup-loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--surface-3);
+  border-top-color: var(--neon-manhattan);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .explorer-layout {
+    height: calc(100vh - 56px);
+  }
+
+  .explorer-popup {
+    width: calc(100% - 24px);
+    max-height: 50vh;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+  }
+
+  .explorer-toolbar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .explorer-toolbar-label {
+    display: none;
+  }
+
+  .ep-name {
+    font-size: 14px;
+  }
+
+  .ep-btns {
+    flex-direction: column;
+  }
+
+  .ep-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .explorer-popup {
+    width: calc(100% - 16px);
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .ep-header {
+    min-height: 60px;
+    padding: 12px;
+  }
+
+  .ep-body {
+    padding: 12px;
+  }
+
+  .ep-name {
+    font-size: 13px;
+  }
+
+  .ep-desc {
+    font-size: 12px;
+  }
+
+  .explorer-toolbar {
+    padding: 8px;
+  }
+}

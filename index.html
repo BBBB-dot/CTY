@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CTY - NYC Explorer</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.42.4"></script>
+
+  <!-- D3 and TopoJSON -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+
+  <!-- Mapbox GL -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/neighborhoods.css">
+  <link rel="stylesheet" href="css/explorer.css">
+  <link rel="stylesheet" href="css/stamps.css">
+</head>
+<body>
+
+<!-- PAGE LOADER -->
+<div class="page-loader">
+  <div class="loader-brand">
+    <div class="loader-logo">CTY</div>
+    <div class="loader-sub">NYC Explorer</div>
+  </div>
+  <div class="loader-tagline">Every block has a story</div>
+</div>
+
+<!-- NAV BAR -->
+<nav class="main-nav">
+  <div class="nav-logo">
+    <div class="logo-icon">▨</div>
+    <div>
+      <div class="logo-name">CTY</div>
+      <div class="logo-sub">NYC Explorer</div>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('neighborhoods',this)">Neighborhoods</button>
+    <button class="nav-tab" onclick="switchTab('explorer',this)">Explorer</button>
+    <button class="nav-tab" onclick="switchTab('stamps',this)">Passport</button>
+  </div>
+  <div class="nav-stats">
+    <span><strong id="nav-hoods">0</strong> hoods</span>
+    <span><strong id="nav-spots">0</strong> spots</span>
+    <span><strong id="nav-stamps-count">0</strong> stamps</span>
+  </div>
+  <div id="nav-auth" style="display:flex;align-items:center;gap:8px">
+    <button id="nav-auth-btn" onclick="openAuth()" style="padding:6px 14px;background:rgba(255,20,147,0.15);border:1px solid rgba(255,20,147,0.4);border-radius:20px;color:#FF1493;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Sign In</button>
+  </div>
+</nav>
+
+<!-- NEIGHBORHOODS PAGE -->
+<div class="page active" id="page-neighborhoods">
+  <div class="inner">
+    <div class="page-header">
+      <h2>Neighborhoods</h2>
+      <p>Explore NYC's neighborhoods — click any area to see what's inside.</p>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="sc-val"><span id="hoods-count">0</span>/<span id="hoods-total">59</span></div>
+        <div class="sc-label">Neighborhoods Explored</div>
+        <div class="bar-track"><div class="bar-fill" id="hoods-bar"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-val" id="hoods-pct">0%</div>
+        <div class="sc-label">of the city</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-val" id="spots-collected">0</div>
+        <div class="sc-label">Spots Collected</div>
+      </div>
+    </div>
+
+    <div class="borough-filter">
+      <button class="filter-btn active" data-borough="all" onclick="filterBorough('all',this)">All</button>
+      <button class="filter-btn manhattan" data-borough="manhattan" onclick="filterBorough('manhattan',this)">Manhattan</button>
+      <button class="filter-btn brooklyn" data-borough="brooklyn" onclick="filterBorough('brooklyn',this)">Brooklyn</button>
+      <button class="filter-btn queens" data-borough="queens" onclick="filterBorough('queens',this)">Queens</button>
+      <button class="filter-btn bronx" data-borough="bronx" onclick="filterBorough('bronx',this)">Bronx</button>
+      <button class="filter-btn staten" data-borough="staten_island" onclick="filterBorough('staten_island',this)">Staten Island</button>
+    </div>
+
+    <div class="neighborhoods-grid" id="neighborhoods-grid"></div>
+  </div>
+</div>
+
+<!-- NEIGHBORHOOD DRAWER -->
+<div class="hood-drawer" id="hood-drawer">
+  <div class="hd-handle"></div>
+  <div class="hd-inner">
+    <div class="hd-head">
+      <div>
+        <div class="hd-name" id="hd-name"></div>
+        <div class="hd-borough" id="hd-borough"></div>
+      </div>
+      <button class="hd-close" onclick="closeHoodDrawer()">×</button>
+    </div>
+    <div class="hd-desc" id="hd-desc"></div>
+    <div class="hd-tags" id="hd-tags"></div>
+    <div class="hd-progress">
+      <div class="hd-progress-text" id="hd-progress-text">0/0 spots collected</div>
+      <div class="bar-track"><div class="bar-fill" id="hd-progress-bar"></div></div>
+    </div>
+    <div class="hd-section-label">Restaurants</div>
+    <div class="hd-spots-list" id="hd-restaurants"></div>
+    <div class="hd-section-label">Attractions</div>
+    <div class="hd-spots-list" id="hd-attractions"></div>
+  </div>
+</div>
+
+<!-- EXPLORER PAGE -->
+<div class="page" id="page-explorer">
+  <div class="inner">
+    <div class="page-header">
+      <h2>City Explorer</h2>
+      <p>All of NYC's best spots on one map. Filter, discover, collect.</p>
+    </div>
+    <div class="explorer-layout">
+      <div class="explorer-map-card">
+        <div class="explorer-toolbar">
+          <div class="explorer-filters">
+            <button class="filter-btn active" onclick="filterExplorer('all',this)">All</button>
+            <button class="filter-btn" onclick="filterExplorer('restaurant',this)">Food</button>
+            <button class="filter-btn" onclick="filterExplorer('landmark',this)">Landmarks</button>
+            <button class="filter-btn" onclick="filterExplorer('museum',this)">Museums</button>
+            <button class="filter-btn" onclick="filterExplorer('park',this)">Parks</button>
+            <button class="filter-btn" onclick="filterExplorer('cultural',this)">Culture</button>
+            <button class="filter-btn" onclick="filterExplorer('observation',this)">Views</button>
+            <button class="filter-btn" onclick="filterExplorer('market',this)">Markets</button>
+          </div>
+        </div>
+        <div id="explorer-map" style="width:100%;height:600px;border-radius:0 0 12px 12px"></div>
+        <div class="explorer-popup" id="explorer-popup" style="display:none">
+          <div class="ep-header" id="ep-header"></div>
+          <div class="ep-body">
+            <div class="ep-name" id="ep-name"></div>
+            <div class="ep-meta" id="ep-meta"></div>
+            <div class="ep-tags" id="ep-tags"></div>
+            <div class="ep-desc" id="ep-desc"></div>
+            <div class="ep-btns">
+              <button class="ep-btn" id="ep-visit-btn" onclick="explorerToggleVisit()">Mark Visited</button>
+              <button class="ep-btn fav" id="ep-fav-btn" onclick="explorerToggleFav()">♡</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STAMPS/PASSPORT PAGE -->
+<div class="page" id="page-stamps">
+  <div class="inner">
+    <div class="page-header">
+      <h2>Passport</h2>
+      <p>Collect stamps for every spot you visit across NYC.</p>
+    </div>
+    <div class="stamps-filter-bar">
+      <button class="filter-btn active" onclick="filterStamps('all',this)">All</button>
+      <button class="filter-btn" onclick="filterStamps('earned',this)">Earned</button>
+      <button class="filter-btn" onclick="filterStamps('locked',this)">Locked</button>
+      <button class="filter-btn" onclick="filterStamps('restaurants',this)">Food</button>
+      <button class="filter-btn" onclick="filterStamps('attractions',this)">Attractions</button>
+    </div>
+    <div class="stamps-stats">
+      <span><strong id="stamps-earned">0</strong> / <span id="stamps-total">0</span> stamps earned</span>
+    </div>
+    <div class="stamps-grid" id="stamps-grid"></div>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#1A1A1A;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;width:340px;max-width:90vw;position:relative">
+    <button onclick="closeAuth()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer">✕</button>
+    <div style="font-size:22px;font-weight:700;margin-bottom:4px;color:#fff" id="auth-title">Sign In</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:24px" id="auth-sub">Your collection syncs across all devices</div>
+    <div id="auth-error" style="display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#f87171;margin-bottom:16px"></div>
+    <input id="auth-name" placeholder="Your name" type="text" style="display:none;width:100%;padding:11px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:14px;margin-bottom:10px;font-family:inherit;outline:none;box-sizing:border-box">
+    <input id="auth-email" placeholder="Email address" type="email" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:14px;margin-bottom:10px;font-family:inherit;outline:none;box-sizing:border-box">
+    <input id="auth-password" placeholder="Password" type="password" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:14px;margin-bottom:20px;font-family:inherit;outline:none;box-sizing:border-box">
+    <button id="auth-submit" onclick="submitAuth()" style="width:100%;padding:12px;background:#FF1493;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:0.5px">Sign In</button>
+    <div style="text-align:center;margin-top:16px;font-size:12px;color:rgba(255,255,255,0.5)">
+      <span id="auth-toggle-text">Don't have an account?</span>
+      <button onclick="toggleAuthMode()" style="background:none;border:none;color:#FF1493;cursor:pointer;font-size:12px;font-family:inherit;padding-left:4px" id="auth-toggle-btn">Sign Up</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"><div id="t-name"></div><div class="t-sub" id="t-sub"></div></div>
+
+<!-- Data files -->
+<script src="data/neighborhoods.js"></script>
+<script src="data/restaurants.js"></script>
+<script src="data/attractions.js"></script>
+
+<!-- Core modules -->
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="js/neighborhoods.js"></script>
+<script src="js/explorer.js"></script>
+<script src="js/stamps.js"></script>
+<script src="js/init.js"></script>
+
+</body>
+</html>

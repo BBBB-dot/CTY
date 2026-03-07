@@ -1,0 +1,503 @@
+/* ============================================
+   CTY - Neighborhoods Page Stylesheet
+   ============================================ */
+
+/* ============================================
+   NEIGHBORHOOD CARDS GRID
+   ============================================ */
+
+.neighborhoods-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ============================================
+   NEIGHBORHOOD CARD
+   ============================================ */
+
+.hood-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.hood-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--neon-manhattan);
+  transition: all 0.3s;
+}
+
+/* Borough-specific accent colors */
+.hood-card.manhattan::before {
+  background: var(--neon-manhattan);
+}
+
+.hood-card.brooklyn::before {
+  background: var(--neon-brooklyn);
+}
+
+.hood-card.queens::before {
+  background: var(--neon-queens);
+}
+
+.hood-card.bronx::before {
+  background: var(--neon-bronx);
+}
+
+.hood-card.staten::before {
+  background: var(--neon-staten);
+}
+
+.hood-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-hover);
+}
+
+.hood-card.manhattan:hover {
+  border-color: rgba(255, 20, 147, 0.3);
+  box-shadow: 0 8px 24px rgba(255, 20, 147, 0.15), var(--shadow-md);
+}
+
+.hood-card.brooklyn:hover {
+  border-color: rgba(0, 217, 255, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 217, 255, 0.15), var(--shadow-md);
+}
+
+.hood-card.queens:hover {
+  border-color: rgba(57, 255, 20, 0.3);
+  box-shadow: 0 8px 24px rgba(57, 255, 20, 0.15), var(--shadow-md);
+}
+
+.hood-card.bronx:hover {
+  border-color: rgba(188, 19, 254, 0.3);
+  box-shadow: 0 8px 24px rgba(188, 19, 254, 0.15), var(--shadow-md);
+}
+
+.hood-card.staten:hover {
+  border-color: rgba(255, 140, 66, 0.3);
+  box-shadow: 0 8px 24px rgba(255, 140, 66, 0.15), var(--shadow-md);
+}
+
+.hood-card-body {
+  padding: 16px;
+}
+
+.hood-card-name {
+  font-family: 'Syne', serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px 0;
+  line-height: 1.2;
+}
+
+.hood-card-borough {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.hood-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.hood-card-tags span {
+  font-size: 10px;
+  background: var(--surface-3);
+  color: var(--text-3);
+  padding: 4px 8px;
+  border-radius: 10px;
+  text-transform: capitalize;
+}
+
+.hood-card-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hood-card-progress-bar {
+  background: var(--surface-3);
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hood-card-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-manhattan), var(--neon-brooklyn));
+  border-radius: 3px;
+  transition: width 0.4s ease-out;
+}
+
+.hood-card-progress-count {
+  font-size: 12px;
+  color: var(--text-2);
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* ============================================
+   BOROUGH FILTER BAR
+   ============================================ */
+
+.borough-filter {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.borough-filter::-webkit-scrollbar {
+  height: 4px;
+}
+
+.borough-filter::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 2px;
+}
+
+.borough-filter::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+/* ============================================
+   HOOD DRAWER (Slide-up Panel)
+   ============================================ */
+
+.hood-drawer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 70vh;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  z-index: 500;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.hood-drawer.active {
+  transform: translateY(0);
+}
+
+.hd-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  margin: 12px auto;
+  cursor: grab;
+}
+
+.hd-handle:active {
+  cursor: grabbing;
+}
+
+.hd-inner {
+  padding: 0 20px 32px 20px;
+}
+
+.hd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.hd-head-content {
+  flex: 1;
+}
+
+.hd-name {
+  font-family: 'Syne', serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 4px 0;
+  line-height: 1.2;
+}
+
+.hd-borough {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  color: var(--neon-manhattan);
+}
+
+.hd-borough.brooklyn {
+  color: var(--neon-brooklyn);
+}
+
+.hd-borough.queens {
+  color: var(--neon-queens);
+}
+
+.hd-borough.bronx {
+  color: var(--neon-bronx);
+}
+
+.hd-borough.staten {
+  color: var(--neon-staten);
+}
+
+.hd-close {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-2);
+  transition: all 0.2s;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.hd-close:hover {
+  color: var(--text);
+  border-color: var(--border-hover);
+  background: var(--surface-3);
+}
+
+.hd-desc {
+  font-size: 14px;
+  color: var(--text-2);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.hd-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.hd-tags span {
+  font-size: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  padding: 6px 12px;
+  border-radius: 12px;
+  text-transform: capitalize;
+  transition: all 0.2s;
+}
+
+.hd-tags span:hover {
+  border-color: var(--border-hover);
+}
+
+.hd-progress {
+  margin-bottom: 24px;
+}
+
+.hd-progress-label {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 8px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+}
+
+.hd-progress-bar {
+  background: var(--surface-3);
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hd-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-manhattan), var(--neon-brooklyn));
+  border-radius: 4px;
+  transition: width 0.4s ease-out;
+}
+
+.hd-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-3);
+  font-weight: 600;
+  margin-bottom: 12px;
+  margin-top: 20px;
+}
+
+.hd-spots-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================
+   SPOT ROWS IN DRAWER
+   ============================================ */
+
+.spot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+
+.spot-row:last-child {
+  border-bottom: none;
+}
+
+.spot-row:hover {
+  background: var(--surface-2);
+  padding: 10px 8px;
+  border-radius: var(--radius-xs);
+}
+
+.spot-check {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.spot-check:hover {
+  border-color: var(--border-hover);
+}
+
+.spot-check.visited {
+  background: var(--neon-manhattan);
+  border-color: var(--neon-manhattan);
+  color: #000;
+  font-weight: 700;
+}
+
+.spot-check.visited.brooklyn {
+  background: var(--neon-brooklyn);
+  border-color: var(--neon-brooklyn);
+  color: #000;
+}
+
+.spot-check.visited.queens {
+  background: var(--neon-queens);
+  border-color: var(--neon-queens);
+  color: #000;
+}
+
+.spot-check.visited.bronx {
+  background: var(--neon-bronx);
+  border-color: var(--neon-bronx);
+  color: #000;
+}
+
+.spot-check.visited.staten {
+  background: var(--neon-staten);
+  border-color: var(--neon-staten);
+  color: #000;
+}
+
+.spot-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.spot-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px 0;
+  line-height: 1.2;
+}
+
+.spot-category {
+  font-size: 11px;
+  background: var(--surface-3);
+  color: var(--text-3);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: capitalize;
+  display: inline-block;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .neighborhoods-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .hood-card-body {
+    padding: 12px;
+  }
+
+  .hood-card-name {
+    font-size: 14px;
+  }
+
+  .hood-drawer {
+    max-height: 80vh;
+  }
+
+  .hd-name {
+    font-size: 24px;
+  }
+
+  .borough-filter {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .neighborhoods-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hd-inner {
+    padding: 0 16px 24px 16px;
+  }
+
+  .hd-name {
+    font-size: 20px;
+  }
+
+  .hd-desc {
+    font-size: 13px;
+  }
+}

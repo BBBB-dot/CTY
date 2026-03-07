@@ -1,0 +1,490 @@
+/* ============================================
+   CTY - Stamps/Passport Page Stylesheet
+   ============================================ */
+
+/* ============================================
+   STAMPS GRID
+   ============================================ */
+
+.stamps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+/* ============================================
+   STAMPS FILTER BAR
+   ============================================ */
+
+.stamps-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.stamps-filter-bar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.stamps-filter-bar::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 2px;
+}
+
+.stamps-filter-bar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+.stamps-filter-bar .filter-btn {
+  flex-shrink: 0;
+}
+
+.stamps-stats {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.stamps-stats-val {
+  color: var(--text);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+/* ============================================
+   STAMP CARD
+   ============================================ */
+
+.stamp-card {
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  animation: revealFade 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.stamp-card:nth-child(1) { animation-delay: 0s; }
+.stamp-card:nth-child(2) { animation-delay: 0.05s; }
+.stamp-card:nth-child(3) { animation-delay: 0.1s; }
+.stamp-card:nth-child(4) { animation-delay: 0.15s; }
+.stamp-card:nth-child(5) { animation-delay: 0.2s; }
+.stamp-card:nth-child(6) { animation-delay: 0.25s; }
+.stamp-card:nth-child(7) { animation-delay: 0.3s; }
+.stamp-card:nth-child(8) { animation-delay: 0.35s; }
+.stamp-card:nth-child(n+9) { animation-delay: 0.4s; }
+
+@keyframes revealFade {
+  to {
+    opacity: 1;
+  }
+}
+
+.stamp-card:hover {
+  transform: translateY(-4px);
+}
+
+.stamp-card.earned:hover {
+  transform: translateY(-6px);
+}
+
+/* ============================================
+   STAMP FACE (Card Interior)
+   ============================================ */
+
+.stamp-face {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Before pseudo-element for decorative background on earned stamps */
+.stamp-face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 30%,
+    color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 4%, transparent) 0%,
+    transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.stamp-card.earned .stamp-face::before {
+  opacity: 1;
+}
+
+/* Earned state — neon glow */
+.stamp-card.earned .stamp-face {
+  border-color: var(--glow-color, var(--neon-manhattan));
+  box-shadow: 0 0 15px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 30%, transparent),
+              inset 0 0 20px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 8%, transparent);
+}
+
+/* Locked state — dim */
+.stamp-card.locked .stamp-face {
+  opacity: 0.45;
+}
+
+.stamp-card.locked:hover {
+  transform: none;
+}
+
+.stamp-card.locked .stamp-icon {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.stamp-icon {
+  font-size: 36px;
+  line-height: 1;
+  display: inline-block;
+  transition: all 0.3s;
+  position: relative;
+  z-index: 1;
+}
+
+.stamp-card.earned:hover .stamp-icon {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.stamp-name {
+  font-family: 'Syne', serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.2;
+  margin: 0;
+  word-break: break-word;
+  position: relative;
+  z-index: 1;
+}
+
+.stamp-location {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+  z-index: 1;
+}
+
+.stamp-category {
+  font-size: 10px;
+  color: var(--text-3);
+  background: var(--surface-3);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: capitalize;
+  position: relative;
+  z-index: 1;
+  transition: all 0.2s;
+}
+
+.stamp-card.earned .stamp-category {
+  background: color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 20%, var(--surface-3));
+  color: var(--glow-color, var(--neon-manhattan));
+}
+
+/* ============================================
+   STAMP CHECK BADGE (Earned Indicator)
+   ============================================ */
+
+.stamp-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--glow-color, var(--neon-manhattan));
+  color: #000;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px var(--glow-color, var(--neon-manhattan)),
+              0 0 24px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 40%, transparent);
+  z-index: 10;
+  animation: checkPulse 2s ease-in-out infinite;
+}
+
+@keyframes checkPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 12px var(--glow-color, var(--neon-manhattan)),
+                0 0 24px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 40%, transparent);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 16px var(--glow-color, var(--neon-manhattan)),
+                0 0 32px color-mix(in srgb, var(--glow-color, var(--neon-manhattan)) 50%, transparent);
+  }
+}
+
+.stamp-card.locked .stamp-check {
+  display: none;
+}
+
+/* ============================================
+   STAMP CARD COLOR VARIANTS
+   (Borough-specific glow colors)
+   ============================================ */
+
+.stamp-card.manhattan.earned .stamp-face {
+  --glow-color: var(--neon-manhattan);
+}
+
+.stamp-card.brooklyn.earned .stamp-face {
+  --glow-color: var(--neon-brooklyn);
+}
+
+.stamp-card.queens.earned .stamp-face {
+  --glow-color: var(--neon-queens);
+}
+
+.stamp-card.bronx.earned .stamp-face {
+  --glow-color: var(--neon-bronx);
+}
+
+.stamp-card.staten.earned .stamp-face {
+  --glow-color: var(--neon-staten);
+}
+
+/* ============================================
+   STAMP INTERACTION STATES
+   ============================================ */
+
+.stamp-card.earned {
+  cursor: pointer;
+}
+
+.stamp-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   STAMPS PAGE STATS SECTION
+   ============================================ */
+
+.stamps-header-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stamps-stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.stamps-stat-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+
+.stamps-stat-label {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.stamps-stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.stamps-stat-bar {
+  margin-top: 12px;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.stamps-stat-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-manhattan), var(--neon-brooklyn));
+  border-radius: 3px;
+  transition: width 0.5s ease-out;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+
+.stamps-empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-2);
+}
+
+.stamps-empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.stamps-empty-title {
+  font-family: 'Syne', serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.stamps-empty-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 24px;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .stamps-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .stamps-filter-bar {
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .stamps-header-stats {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stamps-stat-card {
+    padding: 12px;
+  }
+
+  .stamps-stat-value {
+    font-size: 24px;
+  }
+
+  .stamp-face {
+    min-height: 160px;
+    padding: 16px 12px;
+    gap: 6px;
+  }
+
+  .stamp-icon {
+    font-size: 32px;
+  }
+
+  .stamp-name {
+    font-size: 12px;
+  }
+
+  .stamp-location {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stamps-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+
+  .stamps-filter-bar {
+    flex-wrap: wrap;
+  }
+
+  .stamps-stats {
+    width: 100%;
+    order: -1;
+    margin-left: 0;
+    margin-bottom: 8px;
+  }
+
+  .stamps-header-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .stamps-stat-card {
+    padding: 10px;
+  }
+
+  .stamps-stat-label {
+    font-size: 10px;
+  }
+
+  .stamps-stat-value {
+    font-size: 20px;
+  }
+
+  .stamp-face {
+    min-height: 140px;
+    padding: 12px 10px;
+    gap: 4px;
+  }
+
+  .stamp-icon {
+    font-size: 28px;
+  }
+
+  .stamp-name {
+    font-size: 11px;
+  }
+
+  .stamp-check {
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+    top: 6px;
+    right: 6px;
+  }
+
+  .stamps-empty-state {
+    padding: 32px 16px;
+  }
+
+  .stamps-empty-icon {
+    font-size: 48px;
+  }
+
+  .stamps-empty-title {
+    font-size: 16px;
+  }
+}
