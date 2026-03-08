@@ -114,8 +114,17 @@ function groupLinesByColor(lines) {
 function toggleSingleLine(lineId) {
   if (activeLines.has(lineId)) {
     removeSingleLine(lineId);
+    closeSubwayPopup();
+    stopTrainAnimation();
   } else {
     addSingleLine(lineId);
+
+    // Auto-start: show info popup and begin ride immediately
+    const line = SUBWAY_LINES.find(l => l.id === lineId);
+    if (line) {
+      showSubwayInfo(line);
+      startTrainRide(lineId);
+    }
   }
 
   // Update badge state
@@ -418,7 +427,7 @@ function startTrainRide(lineId) {
   const stationCoords = lineStations.map(s => [s.lng, s.lat]);
 
   // Interpolate dense points for smooth animation
-  const denseRoute = interpolateRoute(stationCoords, 200);
+  const denseRoute = interpolateRoute(stationCoords, 500);
 
   // Create train marker
   const el = document.createElement('div');
@@ -432,7 +441,7 @@ function startTrainRide(lineId) {
 
   let currentIdx = 0;
   const totalFrames = denseRoute.length;
-  const msPerFrame = 30;
+  const msPerFrame = 50;
 
   // Pre-compute station trigger indices
   const stationTriggers = lineStations.map(s => {
