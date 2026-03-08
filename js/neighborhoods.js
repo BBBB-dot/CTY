@@ -355,11 +355,68 @@ function renderMapboxMap(geo) {
   // ─── 3. Locality (sub-neighborhood) polygons ───
   renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts);
 
-  // ─── 4. Apply visited/lived status via feature-state ───
+  // ─── 4. Neighborhood name labels (individual points) ───
+  addHoodLabels();
+
+  // ─── 5. Apply visited/lived status via feature-state ───
   refreshMapColors();
 
-  // ─── 5. Event handlers ───
+  // ─── 6. Event handlers ───
   setupMapEvents();
+}
+
+// ─── Add individual neighborhood name labels ────────────────────
+function addHoodLabels() {
+  if (!hoodMap) return;
+  if (hoodMap.getSource('hood-name-labels')) return;
+
+  // Build point features from NEIGHBORHOODS — one label per hood
+  var labelFeatures = NEIGHBORHOODS.map(function(h, i) {
+    return {
+      type: 'Feature',
+      properties: { name: h.name, borough: h.borough, id: h.id },
+      geometry: {
+        type: 'Point',
+        coordinates: [h.center[1], h.center[0]], // flip [lat,lng] → [lng,lat]
+      },
+    };
+  });
+
+  hoodMap.addSource('hood-name-labels', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: labelFeatures },
+  });
+
+  hoodMap.addLayer({
+    id: 'hood-name-labels',
+    type: 'symbol',
+    source: 'hood-name-labels',
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-size': [
+        'interpolate', ['linear'], ['zoom'],
+        10, 8,
+        12, 10,
+        14, 12,
+        16, 14
+      ],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-transform': 'uppercase',
+      'text-letter-spacing': 0.05,
+      'text-max-width': 8,
+      'text-anchor': 'center',
+      'text-allow-overlap': false,
+      'text-ignore-placement': false,
+      'text-padding': 3,
+      'symbol-placement': 'point',
+    },
+    paint: {
+      'text-color': 'rgba(30, 30, 30, 0.75)',
+      'text-halo-color': 'rgba(255, 255, 255, 0.85)',
+      'text-halo-width': 1.5,
+      'text-halo-blur': 0.5,
+    },
+  });
 }
 
 // ─── Render locality-only (fallback if no GeoJSON) ──────────────
