@@ -77,9 +77,7 @@ body {
   outline: none;
 }
 
-#search-bar input:focus {
-  border-color: var(--accent);
-}
+#search-bar input:focus { border-color: var(--accent); }
 
 #stats-bar {
   padding: 8px 20px;
@@ -90,26 +88,12 @@ body {
   gap: 16px;
 }
 
-.stat-badge {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.stat-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
+.stat-badge { display: flex; align-items: center; gap: 4px; }
+.stat-dot { width: 6px; height: 6px; border-radius: 50%; }
 .stat-dot.edited { background: var(--accent); }
 .stat-dot.original { background: var(--text2); }
 
-#hood-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 0;
-}
+#hood-list { flex: 1; overflow-y: auto; padding: 8px 0; }
 
 .hood-row {
   padding: 10px 20px;
@@ -124,49 +108,20 @@ body {
 .hood-row:hover { background: var(--surface2); }
 .hood-row.active { background: rgba(255, 215, 0, 0.1); border-left: 3px solid var(--accent); }
 .hood-row.edited { background: rgba(255, 215, 0, 0.05); }
+.hood-row.is-sub { padding-left: 36px; }
 
-.hood-row-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.hood-nta-code {
-  font-size: 10px;
-  color: var(--text2);
-  font-family: 'SF Mono', 'Menlo', monospace;
-}
-
-.hood-original {
-  font-size: 12px;
-  color: var(--text2);
-  text-decoration: line-through;
-  display: none;
-}
-
+.hood-row-top { display: flex; justify-content: space-between; align-items: center; }
+.hood-id-tag { font-size: 10px; color: var(--text2); font-family: 'SF Mono', 'Menlo', monospace; }
+.hood-original { font-size: 12px; color: var(--text2); text-decoration: line-through; display: none; }
 .hood-row.edited .hood-original { display: block; }
-
-.hood-display-name {
-  font-size: 13px;
-  font-weight: 600;
-}
-
+.hood-display-name { font-size: 13px; font-weight: 600; }
 .hood-row.edited .hood-display-name { color: var(--accent); }
-
-.edit-indicator {
-  font-size: 10px;
-  color: var(--accent);
-  display: none;
-}
-
+.hood-row.is-sub .hood-display-name { font-size: 12px; font-weight: 500; }
+.edit-indicator { font-size: 10px; color: var(--accent); display: none; }
 .hood-row.edited .edit-indicator { display: inline; }
 
 /* ─── Map ─── */
-#map-container {
-  flex: 1;
-  position: relative;
-}
-
+#map-container { flex: 1; position: relative; }
 #map { width: 100%; height: 100%; }
 
 /* ─── Edit popup ─── */
@@ -186,19 +141,9 @@ body {
 }
 
 #edit-popup.visible { display: block; }
-
-#edit-popup h3 {
-  font-size: 14px;
-  color: var(--text2);
-  margin-bottom: 4px;
-}
-
-#edit-popup .edit-original {
-  font-size: 16px;
-  font-weight: 700;
-  margin-bottom: 16px;
-  color: var(--text);
-}
+#edit-popup h3 { font-size: 14px; color: var(--text2); margin-bottom: 4px; }
+#edit-popup .edit-original { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+#edit-popup .edit-id { font-size: 11px; color: var(--text2); margin-bottom: 16px; font-family: monospace; }
 
 #edit-input {
   width: 100%;
@@ -215,88 +160,44 @@ body {
 
 #edit-input:focus { border-color: var(--accent); }
 
-.edit-actions {
-  display: flex;
-  gap: 10px;
-}
-
+.edit-actions { display: flex; gap: 10px; }
 .edit-actions button {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
+  flex: 1; padding: 10px; border: none; border-radius: 10px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
 }
-
 .edit-actions button:hover { opacity: 0.85; }
-
 .btn-save { background: var(--accent); color: #000; }
 .btn-reset { background: var(--surface2); color: var(--text); border: 1px solid var(--border) !important; }
 .btn-cancel { background: transparent; color: var(--text2); }
 
 /* ─── Top controls ─── */
 #top-controls {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 900;
-  display: flex;
-  gap: 8px;
+  position: absolute; top: 12px; right: 12px; z-index: 900;
+  display: flex; gap: 8px;
 }
 
 .top-btn {
-  padding: 8px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
+  padding: 8px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
 }
-
 .top-btn:hover { background: var(--surface2); }
 .top-btn.export-btn { background: #065f46; border-color: #10b981; color: #10b981; }
 .top-btn.export-btn:hover { background: #047857; color: #fff; }
 .top-btn.apply-btn { background: #7c2d12; border-color: var(--accent2); color: var(--accent2); }
 .top-btn.apply-btn:hover { background: #9a3412; color: #fff; }
 
-/* ─── Overlay dimmer ─── */
-#overlay {
-  display: none;
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 999;
-}
-
+#overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; }
 #overlay.visible { display: block; }
 
-/* Toast */
 #toast {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--save);
-  color: #000;
-  padding: 10px 20px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  z-index: 1100;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--save); color: #000; padding: 10px 20px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; z-index: 1100; opacity: 0;
+  transition: opacity 0.3s; pointer-events: none;
 }
-
 #toast.show { opacity: 1; }
 
-/* Scrollbar */
 #hood-list::-webkit-scrollbar { width: 6px; }
 #hood-list::-webkit-scrollbar-track { background: transparent; }
 #hood-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -307,7 +208,7 @@ body {
 <div id="sidebar">
   <div id="sidebar-header">
     <h1>Neighborhood Name Editor</h1>
-    <p>Click any Manhattan neighborhood to rename its label</p>
+    <p>Uses your defined CTY neighborhood names. Click to rename.</p>
   </div>
   <div id="search-bar">
     <input type="text" id="search-input" placeholder="Search neighborhoods..." />
@@ -324,12 +225,13 @@ body {
   <div id="top-controls">
     <button class="top-btn" onclick="resetAll()">Reset All</button>
     <button class="top-btn export-btn" onclick="exportOverrides()">Export JS</button>
-    <button class="top-btn apply-btn" onclick="applyToProject()">Apply to Project</button>
+    <button class="top-btn apply-btn" onclick="applyToProject()">Apply to neighborhoods.js</button>
   </div>
   <div id="overlay" onclick="closeEdit()"></div>
   <div id="edit-popup">
     <h3>Rename neighborhood</h3>
     <div class="edit-original" id="edit-original-name"></div>
+    <div class="edit-id" id="edit-hood-id"></div>
     <input type="text" id="edit-input" placeholder="New display name..." />
     <div class="edit-actions">
       <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
@@ -340,18 +242,21 @@ body {
   <div id="toast"></div>
 </div>
 
+<!-- Load YOUR existing project data -->
+<script src="../data/neighborhoods.js"></script>
+<script src="../js/nta-mapping.js"></script>
 <script>
 // ─── Config ───
-mapboxgl.accessToken = atob('cGsuZXlKMUlqb2lZbkpwYzJ0aWNtbHpheUlzSW1FaU9pSmpiVzFuZDJKbk5uTXdibWRwTW05eE1XVnRZbTluWTJ0ekluMC5zYnNMbHlrVlYxZVgyelVCcXB4R213');
+mapboxgl.accessToken = atob('cGsuZXlKMUlqb2lZbkpwYzJ0aWNtbHpheUlzSW1FaU9pSmpiVzFuZDJKbk5uTXdibWRwTW85eE1XVnRZbTluWTJ0ekluMC5zYnNMbHlrVlYxZVgyelVCcXB4R213');
 
-// Name overrides: NTA code → new display name
+// Name overrides: hood ID → new display name
 let nameOverrides = {};
 
-// Manhattan NTA data (populated after GeoJSON loads)
-let manhattanNTAs = []; // { code, originalName, feature }
-let activeNTACode = null;
+// Manhattan neighborhood data from YOUR NEIGHBORHOODS array
+let manhattanHoods = [];
+let ntaFeatureMap = {};
+let activeHoodId = null;
 
-// ─── Map ───
 const map = new mapboxgl.Map({
   container: 'map',
   style: 'mapbox://styles/mapbox/dark-v11',
@@ -363,49 +268,55 @@ const map = new mapboxgl.Map({
 map.on('load', () => {
   fetch('../data/nyc-neighborhoods.json')
     .then(r => r.json())
-    .then(geo => {
-      loadManhattanNTAs(geo);
-    });
+    .then(geo => initEditor(geo));
 });
 
-function loadManhattanNTAs(geo) {
-  // Filter for Manhattan NTAs only (ntatype=0, borough=Manhattan)
-  const manhattanFeatures = geo.features.filter(f =>
-    f.properties.borough === 'Manhattan' &&
-    f.properties.ntatype === '0' &&
-    f.properties.name !== 'Central Park'
-  );
-
-  // Build our data array
-  manhattanNTAs = manhattanFeatures.map(f => {
-    // Try to find the NTA code from our mapping
-    const name = f.properties.name;
-    // We'll use the name directly as our key
-    return {
-      originalName: name,
-      feature: f,
-    };
+function initEditor(geo) {
+  // Build NTA code → GeoJSON feature lookup
+  geo.features.forEach(f => {
+    if (f.properties.borough === 'Manhattan' && f.properties.ntatype === '0') {
+      const code = typeof NTA_NAME_TO_CODE !== 'undefined' ? NTA_NAME_TO_CODE[f.properties.name] : null;
+      if (code) ntaFeatureMap[code] = f;
+    }
   });
 
-  // Sort alphabetically
-  manhattanNTAs.sort((a, b) => a.originalName.localeCompare(b.originalName));
-
-  // Add polygon source
-  const fc = {
-    type: 'FeatureCollection',
-    features: manhattanFeatures.map((f, i) => ({
-      ...f,
-      id: i,
-      properties: { ...f.properties, _idx: i }
+  // Get YOUR Manhattan neighborhoods
+  manhattanHoods = NEIGHBORHOODS
+    .filter(h => h.borough === 'manhattan')
+    .map(h => ({
+      id: h.id,
+      name: h.name,
+      ntaCode: h.parent || h.id,
+      isSub: !!h.parent,
+      center: h.center,
     }))
-  };
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  map.addSource('manhattan-nta', { type: 'geojson', data: fc });
+  // Build map polygons — one per parent NTA, labeled with YOUR names
+  const ntaCodes = [...new Set(manhattanHoods.map(h => h.ntaCode))];
+  const mapFeatures = [];
+
+  ntaCodes.forEach((code, i) => {
+    const f = ntaFeatureMap[code];
+    if (!f) return;
+    const subs = manhattanHoods.filter(h => h.ntaCode === code);
+    const label = subs.map(h => nameOverrides[h.id] || h.name).join(' · ');
+
+    mapFeatures.push({
+      type: 'Feature',
+      id: i,
+      properties: { ntaCode: code, name: label, _idx: i },
+      geometry: f.geometry,
+    });
+  });
+
+  map.addSource('manhattan-nta', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: mapFeatures },
+  });
 
   map.addLayer({
-    id: 'manhattan-fill',
-    type: 'fill',
-    source: 'manhattan-nta',
+    id: 'manhattan-fill', type: 'fill', source: 'manhattan-nta',
     paint: {
       'fill-color': [
         'case',
@@ -413,85 +324,59 @@ function loadManhattanNTAs(geo) {
         ['boolean', ['feature-state', 'hover'], false], 'rgba(255, 215, 0, 0.15)',
         'rgba(255, 255, 255, 0.05)'
       ],
-      'fill-opacity': 1,
     }
   });
 
   map.addLayer({
-    id: 'manhattan-line',
-    type: 'line',
-    source: 'manhattan-nta',
+    id: 'manhattan-line', type: 'line', source: 'manhattan-nta',
     paint: {
-      'line-color': [
-        'case',
-        ['boolean', ['feature-state', 'active'], false], 'rgba(255, 215, 0, 0.8)',
-        'rgba(255, 255, 255, 0.2)'
-      ],
-      'line-width': [
-        'case',
-        ['boolean', ['feature-state', 'active'], false], 2,
-        0.5
-      ],
+      'line-color': ['case', ['boolean', ['feature-state', 'active'], false], 'rgba(255,215,0,0.8)', 'rgba(255,255,255,0.2)'],
+      'line-width': ['case', ['boolean', ['feature-state', 'active'], false], 2, 0.5],
     }
   });
 
-  // Labels
   map.addLayer({
-    id: 'manhattan-labels',
-    type: 'symbol',
-    source: 'manhattan-nta',
+    id: 'manhattan-labels', type: 'symbol', source: 'manhattan-nta',
     layout: {
       'text-field': ['get', 'name'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 8, 13, 12, 16, 15],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 8, 12, 11, 14, 13, 16, 15],
       'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
       'text-transform': 'uppercase',
       'text-letter-spacing': 0.04,
-      'text-max-width': 8,
+      'text-max-width': 12,
       'text-anchor': 'center',
       'text-allow-overlap': false,
       'text-padding': 3,
     },
     paint: {
-      'text-color': [
-        'case',
-        ['boolean', ['feature-state', 'edited'], false], '#FFD700',
-        'rgba(255, 255, 255, 0.7)'
-      ],
-      'text-halo-color': 'rgba(0, 0, 0, 0.85)',
+      'text-color': ['case', ['boolean', ['feature-state', 'edited'], false], '#FFD700', 'rgba(255,255,255,0.7)'],
+      'text-halo-color': 'rgba(0,0,0,0.85)',
       'text-halo-width': 1.5,
     }
   });
 
-  // Events
+  // Hover
   let hoveredId = null;
-
   map.on('mousemove', 'manhattan-fill', (e) => {
-    if (hoveredId !== null) {
-      map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: false });
-    }
+    if (hoveredId !== null) map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: false });
     if (e.features.length > 0) {
       hoveredId = e.features[0].id;
       map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: true });
       map.getCanvas().style.cursor = 'pointer';
     }
   });
-
   map.on('mouseleave', 'manhattan-fill', () => {
-    if (hoveredId !== null) {
-      map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: false });
-      hoveredId = null;
-    }
+    if (hoveredId !== null) { map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: false }); hoveredId = null; }
     map.getCanvas().style.cursor = '';
   });
-
   map.on('click', 'manhattan-fill', (e) => {
     if (e.features.length > 0) {
-      const name = e.features[0].properties.name;
-      openEdit(name);
+      const ntaCode = e.features[0].properties.ntaCode;
+      const hood = manhattanHoods.find(h => h.ntaCode === ntaCode);
+      if (hood) openEdit(hood.id);
     }
   });
 
-  // Build sidebar
   renderSidebar();
   updateStats();
 }
@@ -499,98 +384,86 @@ function loadManhattanNTAs(geo) {
 // ─── Sidebar ───
 function renderSidebar(filter = '') {
   const list = document.getElementById('hood-list');
-  const lowerFilter = filter.toLowerCase();
+  const lf = filter.toLowerCase();
 
-  list.innerHTML = manhattanNTAs
-    .filter(h => !lowerFilter || h.originalName.toLowerCase().includes(lowerFilter))
+  list.innerHTML = manhattanHoods
+    .filter(h => !lf || h.name.toLowerCase().includes(lf) || h.id.toLowerCase().includes(lf))
     .map(h => {
-      const displayName = nameOverrides[h.originalName] || h.originalName;
-      const isEdited = !!nameOverrides[h.originalName];
-      const isActive = activeNTACode === h.originalName;
+      const display = nameOverrides[h.id] || h.name;
+      const edited = !!nameOverrides[h.id];
+      const active = activeHoodId === h.id;
       return `
-        <div class="hood-row ${isEdited ? 'edited' : ''} ${isActive ? 'active' : ''}"
-             onclick="openEdit('${escAttr(h.originalName)}')"
-             data-name="${escAttr(h.originalName)}">
+        <div class="hood-row ${edited ? 'edited' : ''} ${active ? 'active' : ''} ${h.isSub ? 'is-sub' : ''}"
+             onclick="openEdit('${escA(h.id)}')" data-id="${escA(h.id)}">
           <div class="hood-row-top">
-            <div class="hood-display-name">${esc(displayName)}</div>
+            <div>
+              <div class="hood-display-name">${esc(display)}</div>
+              <div class="hood-id-tag">${esc(h.id)}</div>
+            </div>
             <span class="edit-indicator">edited</span>
           </div>
-          ${isEdited ? `<div class="hood-original">${esc(h.originalName)}</div>` : ''}
-        </div>
-      `;
+          ${edited ? `<div class="hood-original">${esc(h.name)}</div>` : ''}
+        </div>`;
     }).join('');
 }
 
-// ─── Edit popup ───
-function openEdit(originalName) {
-  activeNTACode = originalName;
+// ─── Edit ───
+function openEdit(hoodId) {
+  activeHoodId = hoodId;
+  const hood = manhattanHoods.find(h => h.id === hoodId);
+  if (!hood) return;
 
-  // Highlight on map
-  manhattanNTAs.forEach((h, i) => {
-    map.setFeatureState(
-      { source: 'manhattan-nta', id: i },
-      { active: h.originalName === originalName }
-    );
+  // Highlight NTA polygon on map
+  const ntaCodes = [...new Set(manhattanHoods.map(h => h.ntaCode))];
+  ntaCodes.forEach((code, i) => {
+    map.setFeatureState({ source: 'manhattan-nta', id: i }, { active: code === hood.ntaCode });
   });
 
-  // Zoom to it
-  const nta = manhattanNTAs.find(h => h.originalName === originalName);
-  if (nta && nta.feature.geometry) {
+  // Zoom to polygon
+  const f = ntaFeatureMap[hood.ntaCode];
+  if (f) {
     const bounds = new mapboxgl.LngLatBounds();
-    const addCoords = (coords) => {
-      if (typeof coords[0] === 'number') {
-        bounds.extend(coords);
-      } else {
-        coords.forEach(addCoords);
-      }
-    };
-    addCoords(nta.feature.geometry.coordinates);
+    const walk = (c) => { if (typeof c[0] === 'number') bounds.extend(c); else c.forEach(walk); };
+    walk(f.geometry.coordinates);
     map.fitBounds(bounds, { padding: 100, duration: 500, bearing: 29 });
   }
 
-  document.getElementById('edit-original-name').textContent = originalName;
-  document.getElementById('edit-input').value = nameOverrides[originalName] || originalName;
+  document.getElementById('edit-original-name').textContent = hood.name;
+  document.getElementById('edit-hood-id').textContent = hoodId + (hood.isSub ? ' (sub of ' + hood.ntaCode + ')' : '');
+  document.getElementById('edit-input').value = nameOverrides[hoodId] || hood.name;
   document.getElementById('edit-popup').classList.add('visible');
   document.getElementById('overlay').classList.add('visible');
   document.getElementById('edit-input').focus();
   document.getElementById('edit-input').select();
-
   renderSidebar(document.getElementById('search-input').value);
 }
 
 function closeEdit() {
   document.getElementById('edit-popup').classList.remove('visible');
   document.getElementById('overlay').classList.remove('visible');
-  activeNTACode = null;
-
-  manhattanNTAs.forEach((h, i) => {
-    map.setFeatureState({ source: 'manhattan-nta', id: i }, { active: false });
-  });
-
+  activeHoodId = null;
+  const ntaCodes = [...new Set(manhattanHoods.map(h => h.ntaCode))];
+  ntaCodes.forEach((code, i) => { map.setFeatureState({ source: 'manhattan-nta', id: i }, { active: false }); });
   renderSidebar(document.getElementById('search-input').value);
 }
 
 function saveEdit() {
-  const originalName = activeNTACode;
+  const hoodId = activeHoodId;
+  const hood = manhattanHoods.find(h => h.id === hoodId);
   const newName = document.getElementById('edit-input').value.trim();
-
-  if (!newName || newName === originalName) {
-    delete nameOverrides[originalName];
+  if (!newName || newName === hood.name) {
+    delete nameOverrides[hoodId];
   } else {
-    nameOverrides[originalName] = newName;
+    nameOverrides[hoodId] = newName;
   }
-
-  // Update the label on the map
   updateMapLabels();
   updateStats();
   closeEdit();
-  toast('Saved: ' + (nameOverrides[originalName] || originalName));
+  toast('Saved: ' + (nameOverrides[hoodId] || hood.name));
 }
 
 function resetCurrent() {
-  const originalName = activeNTACode;
-  delete nameOverrides[originalName];
-  document.getElementById('edit-input').value = originalName;
+  delete nameOverrides[activeHoodId];
   updateMapLabels();
   updateStats();
   closeEdit();
@@ -608,114 +481,99 @@ function resetAll() {
 
 // ─── Update map labels ───
 function updateMapLabels() {
-  // Rebuild the GeoJSON source with updated names
   const src = map.getSource('manhattan-nta');
   if (!src) return;
+  const ntaCodes = [...new Set(manhattanHoods.map(h => h.ntaCode))];
+  const features = [];
 
-  const features = manhattanNTAs.map((h, i) => ({
-    ...h.feature,
-    id: i,
-    properties: {
-      ...h.feature.properties,
-      name: nameOverrides[h.originalName] || h.originalName,
-      _idx: i,
-    }
-  }));
+  ntaCodes.forEach((code, i) => {
+    const f = ntaFeatureMap[code];
+    if (!f) return;
+    const subs = manhattanHoods.filter(h => h.ntaCode === code);
+    const label = subs.map(h => nameOverrides[h.id] || h.name).join(' · ');
+    const anyEdited = subs.some(h => !!nameOverrides[h.id]);
+
+    features.push({
+      type: 'Feature', id: i,
+      properties: { ntaCode: code, name: label, _idx: i },
+      geometry: f.geometry,
+    });
+  });
 
   src.setData({ type: 'FeatureCollection', features });
 
-  // Set edited state for styling
   setTimeout(() => {
-    manhattanNTAs.forEach((h, i) => {
-      map.setFeatureState(
-        { source: 'manhattan-nta', id: i },
-        { edited: !!nameOverrides[h.originalName] }
-      );
+    ntaCodes.forEach((code, i) => {
+      const subs = manhattanHoods.filter(h => h.ntaCode === code);
+      const anyEdited = subs.some(h => !!nameOverrides[h.id]);
+      map.setFeatureState({ source: 'manhattan-nta', id: i }, { edited: anyEdited });
     });
   }, 50);
 }
 
 function updateStats() {
   document.getElementById('edited-count').textContent = Object.keys(nameOverrides).length;
-  document.getElementById('total-count').textContent = manhattanNTAs.length;
+  document.getElementById('total-count').textContent = manhattanHoods.length;
 }
 
 // ─── Export ───
 function exportOverrides() {
   const entries = Object.entries(nameOverrides);
-  if (entries.length === 0) {
-    toast('No edits to export');
-    return;
-  }
+  if (entries.length === 0) { toast('No edits to export'); return; }
 
-  let js = '// Neighborhood display name overrides\n';
-  js += '// Maps original NTA names → preferred display names\n';
-  js += 'const NTA_DISPLAY_NAMES = {\n';
+  // Generate updated NEIGHBORHOODS entries
+  let js = '// Updated neighborhood names — paste into data/neighborhoods.js\n';
+  js += '// Changes:\n';
   entries.sort((a, b) => a[0].localeCompare(b[0]));
-  entries.forEach(([orig, display]) => {
-    js += `  '${orig.replace(/'/g, "\\'")}': '${display.replace(/'/g, "\\'")}',\n`;
+  entries.forEach(([id, name]) => {
+    const orig = manhattanHoods.find(h => h.id === id);
+    js += `//   ${id}: "${orig ? orig.name : '?'}" → "${name}"\n`;
   });
-  js += '};\n';
+  js += '\n// Find-and-replace these name values in data/neighborhoods.js:\n';
+  entries.forEach(([id, name]) => {
+    const orig = manhattanHoods.find(h => h.id === id);
+    if (orig) {
+      js += `// { id: '${id}', name: '${orig.name}' ...  →  name: '${name}'\n`;
+    }
+  });
 
-  // Copy to clipboard
   navigator.clipboard.writeText(js).then(() => {
     toast('Copied to clipboard!');
   }).catch(() => {
-    // Fallback: download as file
     const blob = new Blob([js], { type: 'text/javascript' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'nta-display-names.js';
-    a.click();
-    toast('Downloaded nta-display-names.js');
+    a.href = url; a.download = 'name-edits.js'; a.click();
+    toast('Downloaded name-edits.js');
   });
 }
 
 function applyToProject() {
   const entries = Object.entries(nameOverrides);
-  if (entries.length === 0) {
-    toast('No edits to apply');
-    return;
-  }
+  if (entries.length === 0) { toast('No edits to apply'); return; }
 
-  let msg = 'This will generate a code snippet to add to your project.\n\n';
-  msg += 'Edits:\n';
-  entries.forEach(([orig, display]) => {
-    msg += `  "${orig}" → "${display}"\n`;
+  let msg = 'Edits to apply to neighborhoods.js:\n\n';
+  entries.forEach(([id, name]) => {
+    const orig = manhattanHoods.find(h => h.id === id);
+    msg += `  ${orig ? orig.name : id} → ${name}\n`;
   });
-  msg += '\nCopy the exported JS and add it to your project?';
-
-  if (confirm(msg)) {
-    exportOverrides();
-  }
+  msg += '\nExport these changes?';
+  if (confirm(msg)) exportOverrides();
 }
 
 // ─── Utilities ───
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-function escAttr(s) {
-  return s.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escA(s) { return s.replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.classList.add('show');
-  clearTimeout(el._timeout);
-  el._timeout = setTimeout(() => el.classList.remove('show'), 2000);
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
-// Search
-document.getElementById('search-input').addEventListener('input', (e) => {
-  renderSidebar(e.target.value);
-});
-
-// Enter to save in edit popup
+document.getElementById('search-input').addEventListener('input', (e) => renderSidebar(e.target.value));
 document.getElementById('edit-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') saveEdit();
   if (e.key === 'Escape') closeEdit();
