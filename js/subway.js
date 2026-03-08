@@ -441,7 +441,7 @@ function startTrainRide(lineId) {
 
   let currentIdx = 0;
   const totalFrames = denseRoute.length;
-  const msPerFrame = 80;
+  const msPerFrame = 140;
 
   // Pre-compute station trigger indices
   const stationTriggers = lineStations.map(s => {
@@ -564,9 +564,18 @@ function getNeighborhoodNameAtPoint(lngLat) {
   if (!hoodMap) return null;
   try {
     const point = hoodMap.project(lngLat);
+    // Check locality (sub-neighborhood) polygons first — these cover
+    // areas like Chelsea, SoHo, Hell's Kitchen that nta-fill filters out
+    if (hoodMap.getLayer('locality-fill')) {
+      const locFeatures = hoodMap.queryRenderedFeatures(point, { layers: ['locality-fill'] });
+      if (locFeatures.length > 0) {
+        return locFeatures[0].properties.name || null;
+      }
+    }
+    // Fall back to NTA polygons (for areas without locality boundaries)
     const features = hoodMap.queryRenderedFeatures(point, { layers: ['nta-fill'] });
     if (features.length > 0) {
-      return features[0].properties.ntaName || features[0].properties.name || null;
+      return features[0].properties.name || null;
     }
   } catch (e) {}
   return null;
