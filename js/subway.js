@@ -426,8 +426,8 @@ function startTrainRide(lineId) {
   // Build coordinate path from stations
   const stationCoords = lineStations.map(s => [s.lng, s.lat]);
 
-  // Interpolate dense points for smooth animation
-  const denseRoute = interpolateRoute(stationCoords, 500);
+  // Interpolate dense points for smooth animation (more points = smoother)
+  const denseRoute = interpolateRoute(stationCoords, 2000);
 
   // Create train marker
   const el = document.createElement('div');
@@ -439,11 +439,19 @@ function startTrainRide(lineId) {
     .setLngLat(denseRoute[0])
     .addTo(hoodMap);
 
-  let currentIdx = 0;
-  const totalFrames = denseRoute.length;
-  const msPerFrame = 140;
+  // Total ride duration in milliseconds (~90 seconds for a full line)
+  const totalDurationMs = 90000;
 
-  // Pre-compute station trigger indices
+  // Pre-compute cumulative distances for time-based interpolation
+  const cumDist = [0];
+  for (let i = 1; i < denseRoute.length; i++) {
+    const dx = denseRoute[i][0] - denseRoute[i - 1][0];
+    const dy = denseRoute[i][1] - denseRoute[i - 1][1];
+    cumDist.push(cumDist[i - 1] + Math.sqrt(dx * dx + dy * dy));
+  }
+  const totalDist = cumDist[cumDist.length - 1];
+
+  // Pre-compute station trigger progress values (0-1)
   const stationTriggers = lineStations.map(s => {
     let bestDist = Infinity;
     let bestIdx = 0;
@@ -454,37 +462,58 @@ function startTrainRide(lineId) {
         bestIdx = i;
       }
     });
-    return bestIdx;
+    return cumDist[bestIdx] / totalDist; // progress fraction
   });
 
   const highlightedStations = new Set();
-  const highlightedHoods = new Set();
+  let lastHoodCheckTime = 0;
+  const hoodCheckInterval = 150; // check neighborhood every 150ms
+  let lastCameraTime = 0;
+  const cameraUpdateInterval = 200; // smooth camera updates
 
-  // Camera follow — track the train closely like riding it
-  let lastCameraUpdate = 0;
-  const cameraInterval = 3; // update camera every N frames for smooth panning
-
-  function animate() {
-    if (currentIdx >= totalFrames) {
-      finishTrainRide(lineId);
-      return;
+  // Helper: get position along route at progress fraction (0-1)
+  function getPositionAtProgress(progress) {
+    const targetDist = progress * totalDist;
+    // Binary search for the right segment
+    let lo = 0, hi = cumDist.length - 1;
+    while (lo < hi - 1) {
+      const mid = (lo + hi) >> 1;
+      if (cumDist[mid] <= targetDist) lo = mid;
+      else hi = mid;
     }
+    const seg = lo;
+    const segLen = cumDist[seg + 1] - cumDist[seg];
+    const t = segLen === 0 ? 0 : (targetDist - cumDist[seg]) / segLen;
+    const x = denseRoute[seg][0] + t * (denseRoute[seg + 1][0] - denseRoute[seg][0]);
+    const y = denseRoute[seg][1] + t * (denseRoute[seg + 1][1] - denseRoute[seg][1]);
+    return [x, y];
+  }
 
-    const pt = denseRoute[currentIdx];
+  let startTime = null;
+
+  function animate(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const elapsed = timestamp - startTime;
+    const progress = Math.min(elapsed / totalDurationMs, 1);
+
+    // Get continuous position
+    const pt = getPositionAtProgress(progress);
     trainMarker.setLngLat(pt);
 
-    // Smoothly pan the camera to follow the train
-    if (currentIdx % cameraInterval === 0) {
+    // Smooth camera follow
+    if (timestamp - lastCameraTime > cameraUpdateInterval) {
+      lastCameraTime = timestamp;
       hoodMap.easeTo({
         center: pt,
         bearing: 29,
-        duration: msPerFrame * cameraInterval,
+        duration: cameraUpdateInterval + 50,
         easing: t => t,
       });
     }
 
-    stationTriggers.forEach((triggerIdx, stationI) => {
-      if (currentIdx >= triggerIdx && !highlightedStations.has(stationI)) {
+    // Check station triggers
+    stationTriggers.forEach((triggerProgress, stationI) => {
+      if (progress >= triggerProgress && !highlightedStations.has(stationI)) {
         highlightedStations.add(stationI);
         const station = lineStations[stationI];
         const hoodName = getNeighborhoodNameAtPoint([station.lng, station.lat]);
@@ -493,10 +522,18 @@ function startTrainRide(lineId) {
       }
     });
 
-    highlightNeighborhoodAtPoint(pt, line.color, highlightedHoods);
+    // Update neighborhood highlight (throttled)
+    if (timestamp - lastHoodCheckTime > hoodCheckInterval) {
+      lastHoodCheckTime = timestamp;
+      highlightNeighborhoodAtPoint(pt, line.color);
+    }
 
-    currentIdx++;
-    trainAnimationId = setTimeout(animate, msPerFrame);
+    if (progress >= 1) {
+      finishTrainRide(lineId);
+      return;
+    }
+
+    trainAnimationId = requestAnimationFrame(animate);
   }
 
   // Zoom in close to the first station, then start riding
@@ -508,7 +545,9 @@ function startTrainRide(lineId) {
   });
 
   // Start after initial zoom
-  setTimeout(animate, 1100);
+  setTimeout(() => {
+    trainAnimationId = requestAnimationFrame(animate);
+  }, 1100);
 }
 
 // ─── Interpolate route into N evenly-spaced points ────────────
@@ -559,25 +598,69 @@ function highlightStopInList(stationIdx, hoodName) {
   }
 }
 
+// ─── Point-in-polygon test (ray casting) ────────────────────────
+function pointInPolygon(lat, lng, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const yi = polygon[i][0], xi = polygon[i][1];
+    const yj = polygon[j][0], xj = polygon[j][1];
+    if (((yi > lat) !== (yj > lat)) &&
+        (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
 // ─── Get neighborhood name at a map point ──────────────────────
+// Uses direct point-in-polygon against LOCALITY_BOUNDARIES data for reliable
+// detection (especially Manhattan sub-neighborhoods), then falls back to
+// NEIGHBORHOODS data and finally to queryRenderedFeatures for NTA polygons.
 function getNeighborhoodNameAtPoint(lngLat) {
-  if (!hoodMap) return null;
-  try {
-    const point = hoodMap.project(lngLat);
-    // Check locality (sub-neighborhood) polygons first — these cover
-    // areas like Chelsea, SoHo, Hell's Kitchen that nta-fill filters out
-    if (hoodMap.getLayer('locality-fill')) {
-      const locFeatures = hoodMap.queryRenderedFeatures(point, { layers: ['locality-fill'] });
-      if (locFeatures.length > 0) {
-        return locFeatures[0].properties.name || null;
+  const lng = lngLat[0];
+  const lat = lngLat[1];
+
+  // 1) Check locality boundaries first (sub-neighborhoods like Chelsea, SoHo, etc.)
+  if (typeof LOCALITY_BOUNDARIES !== 'undefined') {
+    for (const name in LOCALITY_BOUNDARIES) {
+      const loc = LOCALITY_BOUNDARIES[name];
+      if (loc.polygon && pointInPolygon(lat, lng, loc.polygon)) {
+        return name;
       }
     }
-    // Fall back to NTA polygons (for areas without locality boundaries)
-    const features = hoodMap.queryRenderedFeatures(point, { layers: ['nta-fill'] });
-    if (features.length > 0) {
-      return features[0].properties.name || null;
+  }
+
+  // 2) Fall back to queryRenderedFeatures for NTA polygons (outer boroughs)
+  if (hoodMap) {
+    try {
+      const point = hoodMap.project(lngLat);
+      const features = hoodMap.queryRenderedFeatures(point, { layers: ['nta-fill'] });
+      if (features.length > 0) {
+        const ntaName = features[0].properties.name;
+        // Try to find a friendlier name from NEIGHBORHOODS
+        if (typeof NEIGHBORHOODS !== 'undefined') {
+          const code = features[0].properties.ntaCode;
+          const match = NEIGHBORHOODS.find(n => n.id === code);
+          if (match) return match.name;
+        }
+        return ntaName || null;
+      }
+    } catch (e) {}
+  }
+
+  return null;
+}
+
+// ─── Get locality key at a point (for highlighting) ─────────────
+function getLocalityKeyAtPoint(lat, lng) {
+  if (typeof LOCALITY_BOUNDARIES !== 'undefined') {
+    for (const name in LOCALITY_BOUNDARIES) {
+      const loc = LOCALITY_BOUNDARIES[name];
+      if (loc.polygon && pointInPolygon(lat, lng, loc.polygon)) {
+        return { type: 'locality', name: name };
+      }
     }
-  } catch (e) {}
+  }
   return null;
 }
 
@@ -633,48 +716,62 @@ function pulseStationOnMap(station, color) {
   }, 50);
 }
 
-// ─── Highlight neighborhood at point ────────────────────────────
-function highlightNeighborhoodAtPoint(lngLat, color, alreadyHighlighted) {
+// ─── Highlight the current neighborhood the train is in ─────────
+// Maintains a single active highlight — when the train enters a new
+// neighborhood, the old one is un-highlighted and the new one lights up.
+let currentHighlightIds = []; // array of { source, id } for active highlights
+
+function highlightNeighborhoodAtPoint(lngLat, color) {
   if (!hoodMap) return;
 
   const point = hoodMap.project(lngLat);
-  const features = hoodMap.queryRenderedFeatures(point, { layers: ['nta-fill'] });
+  const newHighlights = [];
 
-  features.forEach(f => {
-    const code = f.properties.ntaCode;
-    if (code && !alreadyHighlighted.has(code)) {
-      alreadyHighlighted.add(code);
-
-      const numId = f.id;
-      if (numId !== undefined) {
-        hoodMap.setFeatureState(
-          { source: 'nta-polygons', id: numId },
-          { subwayHighlight: true }
-        );
-
-        if (hoodMap.getSource('locality-polygons')) {
-          const locFeatures = hoodMap.queryRenderedFeatures(point, { layers: ['locality-fill'] });
-          locFeatures.forEach(lf => {
-            if (lf.id !== undefined) {
-              hoodMap.setFeatureState(
-                { source: 'locality-polygons', id: lf.id },
-                { subwayHighlight: true }
-              );
-            }
-          });
-        }
-
-        setTimeout(() => {
-          try {
-            hoodMap.setFeatureState(
-              { source: 'nta-polygons', id: numId },
-              { subwayHighlight: false }
-            );
-          } catch (e) {}
-        }, 2000);
+  // Find locality polygon at this point
+  if (hoodMap.getSource('locality-polygons') && hoodMap.getLayer('locality-fill')) {
+    const locFeatures = hoodMap.queryRenderedFeatures(point, { layers: ['locality-fill'] });
+    locFeatures.forEach(lf => {
+      if (lf.id !== undefined) {
+        newHighlights.push({ source: 'locality-polygons', id: lf.id });
       }
+    });
+  }
+
+  // Find NTA polygon at this point
+  if (hoodMap.getSource('nta-polygons') && hoodMap.getLayer('nta-fill')) {
+    const ntaFeatures = hoodMap.queryRenderedFeatures(point, { layers: ['nta-fill'] });
+    ntaFeatures.forEach(f => {
+      if (f.id !== undefined) {
+        newHighlights.push({ source: 'nta-polygons', id: f.id });
+      }
+    });
+  }
+
+  // Build keys for comparison
+  const newKeys = new Set(newHighlights.map(h => h.source + ':' + h.id));
+  const oldKeys = new Set(currentHighlightIds.map(h => h.source + ':' + h.id));
+
+  // Un-highlight features that are no longer under the train
+  currentHighlightIds.forEach(h => {
+    const key = h.source + ':' + h.id;
+    if (!newKeys.has(key)) {
+      try {
+        hoodMap.setFeatureState(h, { subwayHighlight: false });
+      } catch (e) {}
     }
   });
+
+  // Highlight new features
+  newHighlights.forEach(h => {
+    const key = h.source + ':' + h.id;
+    if (!oldKeys.has(key)) {
+      try {
+        hoodMap.setFeatureState(h, { subwayHighlight: true });
+      } catch (e) {}
+    }
+  });
+
+  currentHighlightIds = newHighlights;
 }
 
 // ─── Finish the train ride ─────────────────────────────────────
@@ -698,7 +795,7 @@ function finishTrainRide(lineId) {
 // ─── Stop any running train animation ──────────────────────────
 function stopTrainAnimation() {
   if (trainAnimationId) {
-    clearTimeout(trainAnimationId);
+    cancelAnimationFrame(trainAnimationId);
     trainAnimationId = null;
   }
   if (trainMarker) {
@@ -712,6 +809,15 @@ function stopTrainAnimation() {
 function clearSubwayHighlights() {
   if (!hoodMap) return;
 
+  // Clear any persistent highlight
+  currentHighlightIds.forEach(h => {
+    try {
+      hoodMap.setFeatureState(h, { subwayHighlight: false });
+    } catch (e) {}
+  });
+  currentHighlightIds = [];
+
+  // Also clear any remaining NTA highlights
   try {
     if (hoodMap.getSource('nta-polygons')) {
       const features = hoodMap.queryRenderedFeatures({ layers: ['nta-fill'] });
@@ -724,35 +830,56 @@ function clearSubwayHighlights() {
         }
       });
     }
+    if (hoodMap.getSource('locality-polygons')) {
+      const features = hoodMap.queryRenderedFeatures({ layers: ['locality-fill'] });
+      features.forEach(f => {
+        if (f.id !== undefined) {
+          hoodMap.setFeatureState(
+            { source: 'locality-polygons', id: f.id },
+            { subwayHighlight: false }
+          );
+        }
+      });
+    }
   } catch (e) {}
 }
 
-// ─── Augment NTA layer for subway highlight ────────────────────
+// ─── Augment NTA + locality layers for subway highlight ─────────
 function augmentNTALayerForSubway() {
   if (!hoodMap) return;
 
-  try {
-    hoodMap.setPaintProperty('nta-fill', 'fill-opacity', [
-      'case',
-      ['boolean', ['feature-state', 'subwayHighlight'], false],
-      0.6,
+  const highlightOpacityExpr = [
+    'case',
+    ['boolean', ['feature-state', 'subwayHighlight'], false],
+    0.55,
+    ['case',
+      ['boolean', ['feature-state', 'hover'], false],
       ['case',
-        ['boolean', ['feature-state', 'hover'], false],
-        ['case',
-          ['any',
-            ['==', ['feature-state', 'status'], 'lived'],
-            ['==', ['feature-state', 'status'], 'visited']
-          ],
-          0.27,
-          0.12
+        ['any',
+          ['==', ['feature-state', 'status'], 'lived'],
+          ['==', ['feature-state', 'status'], 'visited']
         ],
-        ['==', ['feature-state', 'status'], 'lived'],
-        0.55,
-        ['==', ['feature-state', 'status'], 'visited'],
-        0.40,
-        0
-      ]
-    ]);
+        0.27,
+        0.12
+      ],
+      ['==', ['feature-state', 'status'], 'lived'],
+      0.55,
+      ['==', ['feature-state', 'status'], 'visited'],
+      0.40,
+      0
+    ]
+  ];
+
+  try {
+    if (hoodMap.getLayer('nta-fill')) {
+      hoodMap.setPaintProperty('nta-fill', 'fill-opacity', highlightOpacityExpr);
+    }
+  } catch (e) {}
+
+  try {
+    if (hoodMap.getLayer('locality-fill')) {
+      hoodMap.setPaintProperty('locality-fill', 'fill-opacity', highlightOpacityExpr);
+    }
   } catch (e) {}
 }
 
