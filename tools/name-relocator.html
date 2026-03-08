@@ -245,8 +245,10 @@ body {
   <div id="toast"></div>
 </div>
 
-<!-- Load project data -->
+<!-- Load ALL project data files (same as main app) -->
 <script src="../data/neighborhoods.js"></script>
+<script src="../data/locality-boundaries.js"></script>
+<script src="../data/neighborhood-priority.js"></script>
 <script src="../js/nta-mapping.js"></script>
 <script>
 // ─── Config ───
@@ -276,7 +278,40 @@ const BOROUGH_ZOOMS = {
   staten_island: 11.5,
 };
 
-// Moved positions: hood.id → [lat, lng] (same format as neighborhoods.js)
+// ─── Sub-neighborhood ID → locality boundary name (same as main app) ───
+const SUB_TO_LOCALITY = {
+  'MN-FiDi': 'Financial District', 'MN-BPC': 'Battery Park City',
+  'MN-Tribeca': 'TriBeCa', 'MN-CivCtr': 'Civic Center',
+  'MN-SoHo': 'SoHo', 'MN-LittleItaly': 'Little Italy',
+  'MN-HudsonSq': 'Hudson Square', 'MN-Nolita': 'NoLita',
+  'MN-GrnwchVlg': 'Greenwich Village', 'MN-NoHo': 'NoHo',
+  'MN-WestVlg': 'West Village', 'MN-Meatpacking': 'Meatpacking District',
+  'MN-Chinatown': 'Chinatown', 'MN-TwoBridges': 'Two Bridges',
+  'MN-LES': 'Lower East Side', 'MN-Bowery': 'Bowery',
+  'MN-EastVlg': 'East Village', 'MN-AlphaCity': 'Alphabet City',
+  'MN-Chelsea': 'Chelsea', 'MN-HudsonYards': 'Hudson Yards',
+  'MN-HellsK': "Hell's Kitchen", 'MN-GarmentDist': 'Garment District',
+  'MN-Flatiron': 'Flatiron District', 'MN-UnionSq': 'Union Square',
+  'MN-NoMad': 'NoMad', 'MN-Koreatown': 'Koreatown',
+  'MN-Midtown': 'Midtown Center', 'MN-TimesSq': 'Theater District',
+  'MN-DiamondDist': 'Diamond District',
+  'MN-StuyTown': 'Stuyvesant Town', 'MN-PeterCooper': 'Peter Cooper Village',
+  'MN-Gramercy': 'Gramercy Park', 'MN-RoseHill': 'Rose Hill',
+  'MN-MurrayHill': 'Murray Hill', 'MN-KipsBay': 'Kips Bay',
+  'MN-EastMidtown': 'Midtown East', 'MN-TurtleBay': 'Turtle Bay',
+  'MN-SuttonPl': 'Sutton Place', 'MN-TudorCity': 'Tudor City',
+  'MN-LincolnSq': 'Lincoln Square',
+  'MN-UWS': 'Upper West Side', 'MN-ManValley': 'Manhattan Valley',
+  'MN-LenoxHill': 'Lenox Hill', 'MN-UES': 'Upper East Side',
+  'MN-CarnegieHill': 'Carnegie Hill', 'MN-Yorkville': 'Yorkville',
+  'MN-MorningsideHts': 'Morningside Heights',
+  'MN-Manhattanville': 'Manhattanville',
+  'MN-HamiltonHts': 'Hamilton Heights', 'MN-SugarHill': 'Sugar Hill',
+  'MN-Harlem': 'Harlem',
+  'MN-SpanishHarlem': 'East Harlem',
+};
+
+// State
 let movedPositions = {};
 let markers = {};
 let currentBorough = 'manhattan';
@@ -315,6 +350,25 @@ function getNTAFill(ntaCode, borough, index, total) {
   return '#' + [r2, g2, b2].map(c => c.toString(16).padStart(2, '0')).join('');
 }
 
+function getBoroughColor(borough) {
+  return BOROUGH_COLORS[borough] || '#FCCC0A';
+}
+
+function latlngPolyArea(coords) {
+  let area = 0;
+  for (let i = 0; i < coords.length; i++) {
+    const j = (i + 1) % coords.length;
+    area += coords[i][0] * coords[j][1];
+    area -= coords[j][0] * coords[i][1];
+  }
+  return Math.abs(area / 2);
+}
+
+function getSubsForNTA(ntaCode) {
+  if (typeof SUB_TO_NTA === 'undefined') return [];
+  return NEIGHBORHOODS.filter(h => h.parent && (typeof getSubNTA !== 'undefined' ? getSubNTA(h.id) : SUB_TO_NTA[h.id]) === ntaCode);
+}
+
 // ─── Map ───
 const map = new mapboxgl.Map({
   container: 'map',
@@ -323,6 +377,8 @@ const map = new mapboxgl.Map({
   zoom: BOROUGH_ZOOMS.manhattan,
   bearing: 29,
   pitch: 0,
+  minZoom: 10,
+  maxZoom: 18,
   attributionControl: false,
 });
 
@@ -345,7 +401,13 @@ function initRelocator(geo) {
     }
   });
 
-  // Build polygon features for ALL boroughs
+  // Track which NTAs have sub-neighborhoods
+  const ntasWithSubs = {};
+  if (typeof SUB_TO_NTA !== 'undefined') {
+    Object.values(SUB_TO_NTA).forEach(ntaCode => { ntasWithSubs[ntaCode] = true; });
+  }
+
+  // ─── 1. NTA polygon features ───
   const ntaFeatures = [];
   const boroughCounts = {};
   const ntaPaths = [];
@@ -353,7 +415,6 @@ function initRelocator(geo) {
   geo.features.forEach(f => {
     const code = NTA_NAME_TO_CODE[f.properties.name];
     if (f.properties.name === 'Central Park') {
-      // Add Central Park separately
       map.addSource('central-park', { type: 'geojson', data: f });
       map.addLayer({
         id: 'central-park-fill', type: 'fill', source: 'central-park',
@@ -381,6 +442,7 @@ function initRelocator(geo) {
     const idx = boroughIdx[boro]++;
     const total = boroughCounts[boro];
     const fill = getNTAFill(f.properties.ntaCode, boro, idx, total);
+    const hasSubs = ntasWithSubs[f.properties.ntaCode];
 
     ntaFeatures.push({
       type: 'Feature',
@@ -389,6 +451,7 @@ function initRelocator(geo) {
         ntaCode: f.properties.ntaCode,
         borough: boro,
         fill: fill,
+        hasSubs: hasSubs ? 1 : 0,
         name: f.properties.name,
       },
       geometry: f.geometry,
@@ -398,10 +461,13 @@ function initRelocator(geo) {
   map.addSource('nta-polygons', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: ntaFeatures },
+    generateId: false,
   });
 
+  // NTA fill — only for NTAs WITHOUT subs (same as main app)
   map.addLayer({
     id: 'nta-fill', type: 'fill', source: 'nta-polygons',
+    filter: ['==', ['get', 'hasSubs'], 0],
     paint: {
       'fill-color': ['get', 'fill'],
       'fill-opacity': 0.35,
@@ -410,13 +476,146 @@ function initRelocator(geo) {
 
   map.addLayer({
     id: 'nta-line', type: 'line', source: 'nta-polygons',
+    filter: ['==', ['get', 'hasSubs'], 0],
     paint: {
       'line-color': 'rgba(28,28,28,0.2)',
       'line-width': 0.8,
     },
   });
 
-  // Load borough
+  // NTA parent outlines (for NTAs that HAVE subs — show boundary but no fill)
+  map.addLayer({
+    id: 'nta-parent-line', type: 'line', source: 'nta-polygons',
+    filter: ['==', ['get', 'hasSubs'], 1],
+    paint: {
+      'line-color': 'rgba(28,28,28,0.1)',
+      'line-width': 0.5,
+    },
+  });
+
+  // ─── 2. Locality (sub-neighborhood) polygons ───
+  const hasLocality = typeof LOCALITY_BOUNDARIES !== 'undefined';
+  const hasPriority = typeof NEIGHBORHOOD_PRIORITY !== 'undefined';
+
+  if (hasLocality) {
+    const subEntries = [];
+
+    // Process NTAs that have subs
+    ntaPaths.forEach(feature => {
+      const ntaCode = feature.properties.ntaCode;
+      if (!ntasWithSubs[ntaCode]) return;
+
+      const subs = getSubsForNTA(ntaCode);
+      subs.forEach((sub, i) => {
+        const localityName = SUB_TO_LOCALITY[sub.id];
+        const localityData = localityName ? LOCALITY_BOUNDARIES[localityName] : null;
+        if (!localityData || !localityData.polygon) return;
+
+        const priority = hasPriority && NEIGHBORHOOD_PRIORITY[sub.id]
+          ? NEIGHBORHOOD_PRIORITY[sub.id] : 0;
+
+        subEntries.push({
+          subId: sub.id,
+          hood: sub,
+          polygon: localityData.polygon,
+          borough: sub.borough,
+          priority: priority,
+          ntaCode: ntaCode,
+          idx: i,
+          totalInNTA: subs.length,
+        });
+      });
+    });
+
+    // Also check for locality polygons not in NTA system
+    NEIGHBORHOODS.forEach(hood => {
+      if (hood.borough !== 'manhattan') return;
+      const localityName = SUB_TO_LOCALITY[hood.id];
+      const localityData = localityName ? LOCALITY_BOUNDARIES[localityName] : null;
+      if (!localityData || !localityData.polygon) return;
+      if (subEntries.some(e => e.subId === hood.id)) return;
+
+      const priority = hasPriority && NEIGHBORHOOD_PRIORITY[hood.id]
+        ? NEIGHBORHOOD_PRIORITY[hood.id] : 0;
+
+      subEntries.push({
+        subId: hood.id,
+        hood: hood,
+        polygon: localityData.polygon,
+        borough: hood.borough,
+        priority: priority,
+        ntaCode: hood.parent || hood.id,
+        idx: 0,
+        totalInNTA: 1,
+      });
+    });
+
+    // Sort by priority (lowest first → rendered behind)
+    subEntries.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return latlngPolyArea(b.polygon) - latlngPolyArea(a.polygon);
+    });
+
+    // Build GeoJSON — flip [lat,lng] → [lng,lat]
+    const localityFeatures = [];
+    let localityNumId = 1;
+
+    subEntries.forEach(entry => {
+      const id = localityNumId++;
+      const subFill = getBoroughColor(entry.borough);
+
+      const coordinates = [entry.polygon.map(p => [p[1], p[0]])];
+      const ring = coordinates[0];
+      if (ring.length > 0) {
+        const first = ring[0], last = ring[ring.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+          ring.push([first[0], first[1]]);
+        }
+      }
+
+      localityFeatures.push({
+        type: 'Feature',
+        id: id,
+        properties: {
+          subId: entry.subId,
+          borough: entry.borough,
+          fill: subFill,
+          priority: entry.priority,
+          name: entry.hood.name,
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: coordinates,
+        },
+      });
+    });
+
+    if (localityFeatures.length > 0) {
+      map.addSource('locality-polygons', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: localityFeatures },
+        generateId: false,
+      });
+
+      map.addLayer({
+        id: 'locality-fill', type: 'fill', source: 'locality-polygons',
+        paint: {
+          'fill-color': ['get', 'fill'],
+          'fill-opacity': 0.35,
+        },
+      });
+
+      map.addLayer({
+        id: 'locality-line', type: 'line', source: 'locality-polygons',
+        paint: {
+          'line-color': 'rgba(28,28,28,0.2)',
+          'line-width': 0.8,
+        },
+      });
+    }
+  }
+
+  // Load default borough
   switchBorough('manhattan');
 }
 
@@ -460,7 +659,6 @@ function switchBorough(boro) {
     marker.on('dragend', () => {
       el.classList.remove('dragging');
       const newLngLat = marker.getLngLat();
-      // Store as [lat, lng] to match neighborhoods.js format
       movedPositions[h.id] = [
         Math.round(newLngLat.lat * 10000) / 10000,
         Math.round(newLngLat.lng * 10000) / 10000,
@@ -552,7 +750,6 @@ function exportPositions() {
   const entries = Object.entries(movedPositions);
   if (entries.length === 0) { toast('No labels have been moved'); return; }
 
-  // Generate updated center coordinates
   let js = '// Updated neighborhood center positions\n';
   js += '// Paste these into data/neighborhoods.js to update label positions\n';
   js += '// Generated by Name Relocator tool\n\n';
@@ -574,8 +771,8 @@ function exportPositions() {
 
   js += '\n\n// ─── Machine-readable updates ───\n';
   js += 'const CENTER_UPDATES = {\n';
-  entries.forEach(([id, center], i) => {
-    js += `  '${id}': [${center[0]}, ${center[1]}],${i < entries.length - 1 ? '' : ''}\n`;
+  entries.forEach(([id, center]) => {
+    js += `  '${id}': [${center[0]}, ${center[1]}],\n`;
   });
   js += '};\n';
 
