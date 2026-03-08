@@ -519,6 +519,7 @@ function startTrainRide(lineId) {
         const hoodName = getNeighborhoodNameAtPoint([station.lng, station.lat]);
         highlightStopInList(stationI, hoodName);
         pulseStationOnMap(station, line.color);
+        showStationToast(station.name, hoodName, line.color);
       }
     });
 
@@ -664,6 +665,36 @@ function getLocalityKeyAtPoint(lat, lng) {
   return null;
 }
 
+// ─── Show station name toast on screen ──────────────────────────
+let stationToastTimeout = null;
+
+function showStationToast(stationName, hoodName, color) {
+  const mapWrap = document.querySelector('.hood-map-wrap');
+  if (!mapWrap) return;
+
+  // Remove any existing toast
+  const existing = mapWrap.querySelector('.subway-station-toast');
+  if (existing) existing.remove();
+  if (stationToastTimeout) clearTimeout(stationToastTimeout);
+
+  const toast = document.createElement('div');
+  toast.className = 'subway-station-toast';
+
+  let label = `<span class="toast-dot" style="background:${color}"></span>${escHtml(stationName)}`;
+  if (hoodName) {
+    label += `<span style="font-weight:400; opacity:0.6; margin-left:6px">· ${escHtml(hoodName)}</span>`;
+  }
+  toast.innerHTML = label;
+
+  mapWrap.appendChild(toast);
+
+  // Fade out after 2 seconds
+  stationToastTimeout = setTimeout(() => {
+    toast.classList.add('fading');
+    setTimeout(() => toast.remove(), 400);
+  }, 2000);
+}
+
 // ─── Pulse a station on the map ────────────────────────────────
 function pulseStationOnMap(station, color) {
   if (!hoodMap || !station) return;
@@ -802,6 +833,11 @@ function stopTrainAnimation() {
     trainMarker.remove();
     trainMarker = null;
   }
+  // Remove station toast
+  if (stationToastTimeout) clearTimeout(stationToastTimeout);
+  const toast = document.querySelector('.subway-station-toast');
+  if (toast) toast.remove();
+
   clearSubwayHighlights();
 }
 
