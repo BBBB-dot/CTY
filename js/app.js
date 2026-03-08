@@ -28,11 +28,6 @@ function switchTab(tab, btn) {
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
-  // Initialize map on first explorer view
-  if (tab === 'explorer' && !window.explorerMapInitialized) {
-    setTimeout(() => initExplorerMap(), 100);
-  }
-
   // Re-init hood map if switching back (SVG might need resize)
   if (tab === 'neighborhoods' && !hoodMapReady) {
     setTimeout(() => initHoodMap(), 100);

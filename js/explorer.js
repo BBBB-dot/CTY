@@ -1,42 +1,35 @@
-// Explorer Map Logic
+// Explorer Spots — renders on the main hoodMap (no separate map)
 
-let explorerMap = null;
 let explorerMarkers = {};
 let currentExplorerFilter = 'all';
 let currentExplorerPopupItem = null;
 let currentExplorerPopupType = null;
-window.explorerMapInitialized = false;
+let spotsVisible = false;
 
-// Mapbox token — split to avoid GitHub secret scanning blocks on push.
-var MAPBOX_TOKEN = atob('cGsuZXlKMUlqb2lZbkpwYzJ0aWNtbHpheUlzSW1FaU9pSmpiVzFuZDJKbk5uTXdibWRwTW05eE1XVnRZbTluWTJ0ekluMC5zYnNMbHlrVlYxZVgyelVCcXB4R213');
+// Toggle spot markers on the main map
+function toggleSpots() {
+  spotsVisible = !spotsVisible;
+  const btn = document.getElementById('spots-toggle');
+  const filterBar = document.getElementById('spots-filter-bar');
 
-// Initialize explorer map
-function initExplorerMap() {
-  if (window.explorerMapInitialized) return;
-
-  mapboxgl.accessToken = MAPBOX_TOKEN;
-
-  explorerMap = new mapboxgl.Map({
-    container: 'explorer-map',
-    style: 'mapbox://styles/mapbox/light-v11',
-    center: [-74.0060, 40.7128],
-    zoom: 11
-  });
-
-  explorerMap.on('load', function() {
+  if (spotsVisible) {
+    btn.classList.add('active');
+    if (filterBar) filterBar.style.display = 'flex';
     addExplorerMarkers();
-  });
-
-  window.explorerMapInitialized = true;
+  } else {
+    btn.classList.remove('active');
+    if (filterBar) filterBar.style.display = 'none';
+    removeAllExplorerMarkers();
+    closeExplorerPopup();
+  }
 }
 
-// Add markers to map
+// Add markers to the main hoodMap
 function addExplorerMarkers() {
-  // Clear existing markers
-  Object.values(explorerMarkers).forEach(marker => {
-    marker.element.remove();
-  });
-  explorerMarkers = {};
+  if (!hoodMap) return;
+
+  // Clear existing markers first
+  removeAllExplorerMarkers();
 
   // Add restaurant markers
   RESTAURANTS.forEach(rest => {
@@ -47,11 +40,22 @@ function addExplorerMarkers() {
   ATTRACTIONS.forEach(attr => {
     addMarkerToMap('attraction', attr);
   });
+
+  // Apply current filter
+  updateExplorerMarkers();
 }
 
-// Add single marker
+// Remove all markers
+function removeAllExplorerMarkers() {
+  Object.values(explorerMarkers).forEach(data => {
+    data.marker.remove();
+  });
+  explorerMarkers = {};
+}
+
+// Add single marker to hoodMap
 function addMarkerToMap(type, item) {
-  if (!item.lat || !item.lng) return;
+  if (!item.lat || !item.lng || !hoodMap) return;
 
   const visited = type === 'restaurant'
     ? isRestaurantVisited(item.id)
@@ -82,7 +86,7 @@ function addMarkerToMap(type, item) {
 
   const marker = new mapboxgl.Marker(el)
     .setLngLat([item.lng, item.lat])
-    .addTo(explorerMap);
+    .addTo(hoodMap);
 
   explorerMarkers[type + ':' + item.id] = { element: el, marker: marker, item: item, type: type };
 }
@@ -185,15 +189,16 @@ function explorerToggleFav() {
 
 // Close explorer popup
 function closeExplorerPopup() {
-  document.getElementById('explorer-popup').style.display = 'none';
+  const popup = document.getElementById('explorer-popup');
+  if (popup) popup.style.display = 'none';
   currentExplorerPopupItem = null;
   currentExplorerPopupType = null;
 }
 
-// Filter explorer
+// Filter explorer spots
 function filterExplorer(category, btn) {
   currentExplorerFilter = category;
-  document.querySelectorAll('.explorer-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.spots-filter-bar .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
   updateExplorerMarkers();

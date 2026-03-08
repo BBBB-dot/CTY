@@ -51,10 +51,6 @@
       <span class="route-dot" style="background:var(--mta-red)"></span>
       Neighborhoods
     </button>
-    <button class="nav-tab" onclick="switchTab('explorer',this)">
-      <span class="route-dot" style="background:var(--brooklyn)"></span>
-      Explorer
-    </button>
     <button class="nav-tab" onclick="switchTab('stamps',this)">
       <span class="route-dot" style="background:var(--staten)"></span>
       Passport
@@ -115,15 +111,46 @@
         <button class="zoom-btn" onclick="zoomMapOut()" title="Zoom out">−</button>
         <button class="zoom-btn reset" onclick="resetMapZoom()" title="Reset view">⟲</button>
       </div>
-      <!-- Subway layer toggle -->
-      <button class="subway-toggle" id="subway-toggle" onclick="toggleSubwayLines()" title="Show subway lines">
-        <span class="subway-toggle-icon">🚇</span>
-        <span class="subway-toggle-label">Subway</span>
-      </button>
-      <button class="subway-toggle" id="directions-toggle" onclick="openDirectionsPanel()" title="Get subway directions">
-        <span class="subway-toggle-icon">🧭</span>
-        <span class="subway-toggle-label">Directions</span>
-      </button>
+      <!-- Map control buttons -->
+      <div class="map-controls-row">
+        <button class="subway-toggle" id="subway-toggle" onclick="toggleSubwayLines()" title="Show subway lines">
+          <span class="subway-toggle-icon">🚇</span>
+          <span class="subway-toggle-label">Subway</span>
+        </button>
+        <button class="subway-toggle" id="directions-toggle" onclick="openDirectionsPanel()" title="Get subway directions">
+          <span class="subway-toggle-icon">🧭</span>
+          <span class="subway-toggle-label">Directions</span>
+        </button>
+        <button class="subway-toggle" id="spots-toggle" onclick="toggleSpots()" title="Show spots on map">
+          <span class="subway-toggle-icon">📍</span>
+          <span class="subway-toggle-label">Spots</span>
+        </button>
+      </div>
+      <!-- Spot filter bar (hidden until spots toggled on) -->
+      <div class="spots-filter-bar" id="spots-filter-bar" style="display:none">
+        <button class="filter-btn active" onclick="filterExplorer('all',this)">All</button>
+        <button class="filter-btn" onclick="filterExplorer('restaurant',this)">Food</button>
+        <button class="filter-btn" onclick="filterExplorer('landmark',this)">Landmarks</button>
+        <button class="filter-btn" onclick="filterExplorer('museum',this)">Museums</button>
+        <button class="filter-btn" onclick="filterExplorer('park',this)">Parks</button>
+        <button class="filter-btn" onclick="filterExplorer('cultural',this)">Culture</button>
+        <button class="filter-btn" onclick="filterExplorer('observation',this)">Views</button>
+        <button class="filter-btn" onclick="filterExplorer('market',this)">Markets</button>
+      </div>
+      <!-- Explorer spot popup -->
+      <div class="explorer-popup" id="explorer-popup" style="display:none">
+        <div class="ep-header" id="ep-header"></div>
+        <div class="ep-body">
+          <div class="ep-name" id="ep-name"></div>
+          <div class="ep-meta" id="ep-meta"></div>
+          <div class="ep-tags" id="ep-tags"></div>
+          <div class="ep-desc" id="ep-desc"></div>
+          <div class="ep-btns">
+            <button class="ep-btn" id="ep-visit-btn" onclick="explorerToggleVisit()">Mark Visited</button>
+            <button class="ep-btn fav" id="ep-fav-btn" onclick="explorerToggleFav()">♡</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Search + Borough Filter + Cards Grid -->
@@ -200,45 +227,6 @@
   </div>
 </div>
 
-<!-- EXPLORER PAGE -->
-<div class="page" id="page-explorer">
-  <div class="inner">
-    <div class="page-header">
-      <h2>City Explorer</h2>
-      <p>All of NYC's best spots on one map. Filter, discover, collect.</p>
-    </div>
-    <div class="explorer-layout">
-      <div class="explorer-map-card">
-        <div class="explorer-toolbar">
-          <div class="explorer-filters">
-            <button class="filter-btn active" onclick="filterExplorer('all',this)">All</button>
-            <button class="filter-btn" onclick="filterExplorer('restaurant',this)">Food</button>
-            <button class="filter-btn" onclick="filterExplorer('landmark',this)">Landmarks</button>
-            <button class="filter-btn" onclick="filterExplorer('museum',this)">Museums</button>
-            <button class="filter-btn" onclick="filterExplorer('park',this)">Parks</button>
-            <button class="filter-btn" onclick="filterExplorer('cultural',this)">Culture</button>
-            <button class="filter-btn" onclick="filterExplorer('observation',this)">Views</button>
-            <button class="filter-btn" onclick="filterExplorer('market',this)">Markets</button>
-          </div>
-        </div>
-        <div id="explorer-map" style="width:100%;height:600px;border-radius:0 0 12px 12px"></div>
-        <div class="explorer-popup" id="explorer-popup" style="display:none">
-          <div class="ep-header" id="ep-header"></div>
-          <div class="ep-body">
-            <div class="ep-name" id="ep-name"></div>
-            <div class="ep-meta" id="ep-meta"></div>
-            <div class="ep-tags" id="ep-tags"></div>
-            <div class="ep-desc" id="ep-desc"></div>
-            <div class="ep-btns">
-              <button class="ep-btn" id="ep-visit-btn" onclick="explorerToggleVisit()">Mark Visited</button>
-              <button class="ep-btn fav" id="ep-fav-btn" onclick="explorerToggleFav()">♡</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- STAMPS/PASSPORT PAGE -->
 <div class="page" id="page-stamps">
