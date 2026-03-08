@@ -1061,8 +1061,8 @@ const RESTAURANTS = [
   borough: "brooklyn",
   neighborhood: "williamsburg",
   category: "italian",
-  lat: 40.7094,
-  lng: -73.9569,
+  lat: 40.7234,
+  lng: -73.9947,
   description: "Italian restaurant famous for housemade pasta and legendary tagliatelle al ragù.",
   tags: ["Italian","Pasta","Fine Dining"],
   colors: ["#8B4513","#FFD700"]

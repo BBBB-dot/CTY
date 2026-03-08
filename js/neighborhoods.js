@@ -25,35 +25,18 @@ if (typeof MAPBOX_TOKEN === 'undefined') {
   var MAPBOX_TOKEN = atob('cGsuZXlKMUlqb2lZbkpwYzJ0aWNtbHpheUlzSW1FaU9pSmpiVzFuZDJKbk5uTXdibWRwTW05eE1XVnRZbTluWTJ0ekluMC5zYnNMbHlrVlYxZVgyelVCcXB4R213');
 }
 
-// ─── Borough color fill ─────────────────────────────────────────
-// Subtle lightness variation within each borough — keeps neighborhoods
-// visually distinct without the chaotic hue shifts.
+// ─── Status-based color scheme ──────────────────────────────────
+// Neighborhoods colored by visited/lived status, not borough.
+const HOOD_STATUS_COLORS = {
+  lived: '#FCCC0A',     // MetroCard gold — strong personal connection
+  visited: '#00933C',   // Subway green — been there
+  none: '#A0A0A0',      // Neutral gray — used for fill property fallback
+};
+
+// getNTAFill now returns a neutral base; actual display color comes
+// from feature-state driven paint expressions.
 function getNTAFill(ntaCode, borough, index, total) {
-  const base = getBoroughColor(borough);
-  const r = parseInt(base.slice(1, 3), 16) / 255;
-  const g = parseInt(base.slice(3, 5), 16) / 255;
-  const b = parseInt(base.slice(5, 7), 16) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h, s, l = (max + min) / 2;
-
-  if (max === min) { h = s = 0; }
-  else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-    }
-  }
-
-  // Very subtle variation: only lightness shifts ±6%, no hue shift
-  const t = total > 1 ? index / (total - 1) : 0.5;
-  const lightShift = (t - 0.5) * 0.06;
-
-  l = Math.max(0.25, Math.min(0.55, l + lightShift));
-
-  return hslToHex(h, s, l);
+  return HOOD_STATUS_COLORS.none;
 }
 
 function hslToHex(h, s, l) {
@@ -277,13 +260,20 @@ function renderMapboxMap(geo) {
   });
 
   // NTA fill layer — only interactive for NTAs WITHOUT subs
+  // Colors driven by visited/lived status, not borough
   hoodMap.addLayer({
     id: 'nta-fill',
     type: 'fill',
     source: 'nta-polygons',
     filter: ['==', ['get', 'hasSubs'], 0],
     paint: {
-      'fill-color': ['get', 'fill'],
+      'fill-color': [
+        'case',
+        ['==', ['feature-state', 'status'], 'lived'], HOOD_STATUS_COLORS.lived,
+        ['==', ['feature-state', 'status'], 'visited'], HOOD_STATUS_COLORS.visited,
+        ['boolean', ['feature-state', 'hover'], false], '#1C1C1C',
+        'rgba(0,0,0,0)'
+      ],
       'fill-opacity': [
         'case',
         ['boolean', ['feature-state', 'hover'], false],
@@ -291,11 +281,11 @@ function renderMapboxMap(geo) {
           ['any',
             ['==', ['feature-state', 'status'], 'lived'],
             ['==', ['feature-state', 'status'], 'visited']
-          ], 0.27,
-          0.12
+          ], 0.35,
+          0.08
         ],
-        ['==', ['feature-state', 'status'], 'lived'], 0.55,
-        ['==', ['feature-state', 'status'], 'visited'], 0.40,
+        ['==', ['feature-state', 'status'], 'lived'], 0.50,
+        ['==', ['feature-state', 'status'], 'visited'], 0.35,
         0
       ],
     },
@@ -310,15 +300,15 @@ function renderMapboxMap(geo) {
       'line-color': [
         'case',
         ['boolean', ['feature-state', 'hover'], false], 'rgba(28,28,28,0.5)',
-        ['==', ['feature-state', 'status'], 'lived'], 'rgba(28,28,28,0.35)',
-        ['==', ['feature-state', 'status'], 'visited'], 'rgba(28,28,28,0.2)',
+        ['==', ['feature-state', 'status'], 'lived'], HOOD_STATUS_COLORS.lived,
+        ['==', ['feature-state', 'status'], 'visited'], HOOD_STATUS_COLORS.visited,
         'transparent'
       ],
       'line-width': [
         'case',
         ['boolean', ['feature-state', 'hover'], false], 1.5,
-        ['==', ['feature-state', 'status'], 'lived'], 1.2,
-        ['==', ['feature-state', 'status'], 'visited'], 0.8,
+        ['==', ['feature-state', 'status'], 'lived'], 1.5,
+        ['==', ['feature-state', 'status'], 'visited'], 1,
         0
       ],
     },
@@ -500,7 +490,7 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
 
   subEntries.forEach(entry => {
     const id = localityNumId++;
-    const subFill = getBoroughColor(entry.borough);
+    const subFill = HOOD_STATUS_COLORS.none;  // neutral; actual color from feature-state
 
     // Flip [lat,lng] → [lng,lat] for GeoJSON
     const coordinates = [entry.polygon.map(p => [p[1], p[0]])];
@@ -550,7 +540,13 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
     type: 'fill',
     source: 'locality-polygons',
     paint: {
-      'fill-color': ['get', 'fill'],
+      'fill-color': [
+        'case',
+        ['==', ['feature-state', 'status'], 'lived'], HOOD_STATUS_COLORS.lived,
+        ['==', ['feature-state', 'status'], 'visited'], HOOD_STATUS_COLORS.visited,
+        ['boolean', ['feature-state', 'hover'], false], '#1C1C1C',
+        'rgba(0,0,0,0)'
+      ],
       'fill-opacity': [
         'case',
         ['boolean', ['feature-state', 'hover'], false],
@@ -558,11 +554,11 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
           ['any',
             ['==', ['feature-state', 'status'], 'lived'],
             ['==', ['feature-state', 'status'], 'visited']
-          ], 0.27,
-          0.12
+          ], 0.35,
+          0.08
         ],
-        ['==', ['feature-state', 'status'], 'lived'], 0.55,
-        ['==', ['feature-state', 'status'], 'visited'], 0.40,
+        ['==', ['feature-state', 'status'], 'lived'], 0.50,
+        ['==', ['feature-state', 'status'], 'visited'], 0.35,
         0
       ],
     },
@@ -576,15 +572,15 @@ function renderLocalityPolygons(ntaPaths, ntasWithSubs, boroughCounts) {
       'line-color': [
         'case',
         ['boolean', ['feature-state', 'hover'], false], 'rgba(28,28,28,0.5)',
-        ['==', ['feature-state', 'status'], 'lived'], 'rgba(28,28,28,0.35)',
-        ['==', ['feature-state', 'status'], 'visited'], 'rgba(28,28,28,0.2)',
+        ['==', ['feature-state', 'status'], 'lived'], HOOD_STATUS_COLORS.lived,
+        ['==', ['feature-state', 'status'], 'visited'], HOOD_STATUS_COLORS.visited,
         'transparent'
       ],
       'line-width': [
         'case',
         ['boolean', ['feature-state', 'hover'], false], 1.5,
-        ['==', ['feature-state', 'status'], 'lived'], 1.2,
-        ['==', ['feature-state', 'status'], 'visited'], 0.8,
+        ['==', ['feature-state', 'status'], 'lived'], 1.5,
+        ['==', ['feature-state', 'status'], 'visited'], 1,
         0
       ],
     },
@@ -801,7 +797,9 @@ function renderNeighborhoods(filter) {
 
   sorted.forEach(hood => {
     const status = getNeighborhoodStatus(hood.id);
-    const color = getBoroughColor(hood.borough);
+    const color = status === 'lived' ? HOOD_STATUS_COLORS.lived
+                : status === 'visited' ? HOOD_STATUS_COLORS.visited
+                : getBoroughColor(hood.borough);
     const spots = getTotalSpotsCount(hood.id);
     const visited = getVisitedSpotsCount(hood.id);
 
@@ -857,8 +855,10 @@ function openHoodDetail(hoodId) {
   if (!hood) return;
 
   const popup = document.getElementById('hood-detail');
-  const color = getBoroughColor(hood.borough);
   const status = getNeighborhoodStatus(hoodId);
+  const color = status === 'lived' ? HOOD_STATUS_COLORS.lived
+              : status === 'visited' ? HOOD_STATUS_COLORS.visited
+              : getBoroughColor(hood.borough);
 
   document.getElementById('hd-accent').style.background = color;
   document.getElementById('hd-name').textContent = hood.name;
@@ -924,7 +924,10 @@ function toggleHoodVisited() {
   const status = getNeighborhoodStatus(currentHoodId);
   const newStatus = status === 'visited' ? false : 'visited';
   syncNeighborhoodStatus(currentHoodId, newStatus);
-  const color = getBoroughColor(getNeighborhoodById(currentHoodId).borough);
+  const hood = getNeighborhoodById(currentHoodId);
+  const color = newStatus === 'lived' ? HOOD_STATUS_COLORS.lived
+              : newStatus === 'visited' ? HOOD_STATUS_COLORS.visited
+              : getBoroughColor(hood.borough);
   updateStatusButtons(currentHoodId, newStatus, color);
   refreshMapColors();
   renderNeighborhoods();
@@ -938,7 +941,10 @@ function toggleHoodLived() {
   const status = getNeighborhoodStatus(currentHoodId);
   const newStatus = status === 'lived' ? false : 'lived';
   syncNeighborhoodStatus(currentHoodId, newStatus);
-  const color = getBoroughColor(getNeighborhoodById(currentHoodId).borough);
+  const hood = getNeighborhoodById(currentHoodId);
+  const color = newStatus === 'lived' ? HOOD_STATUS_COLORS.lived
+              : newStatus === 'visited' ? HOOD_STATUS_COLORS.visited
+              : getBoroughColor(hood.borough);
   updateStatusButtons(currentHoodId, newStatus, color);
   refreshMapColors();
   renderNeighborhoods();
@@ -1151,7 +1157,11 @@ function toggleSpot(type, id, visited) {
   updateNavStats();
 
   if (currentHoodId) {
-    const color = getBoroughColor(getNeighborhoodById(currentHoodId).borough);
+    const hood = getNeighborhoodById(currentHoodId);
+    const hoodStatus = getNeighborhoodStatus(currentHoodId);
+    const color = hoodStatus === 'lived' ? HOOD_STATUS_COLORS.lived
+                : hoodStatus === 'visited' ? HOOD_STATUS_COLORS.visited
+                : getBoroughColor(hood.borough);
     buildMiniMap(currentHoodId, color);
     renderSpotsList(currentHoodId);
     const visitedCount = getVisitedSpotsCount(currentHoodId);
