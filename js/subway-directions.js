@@ -1056,3 +1056,43 @@ function rideDirectionsRoute() {
   hoodMap.easeTo({ center: denseRoute[0], zoom: 14, bearing: 29, duration: 1000 });
   setTimeout(() => { trainAnimationId = requestAnimationFrame(animate); }, 1100);
 }
+
+// ─── Pre-fill directions from a spot / place ────────────────────
+// Called by explorer popup "Directions from here" / "Directions to here"
+function setDirectionsField(which, name, lat, lng) {
+  // Open the directions panel if not already open
+  if (!directionsPanel) {
+    openDirectionsPanel();
+    // Wait for DOM to render
+    setTimeout(() => _fillDirectionsField(which, name, lat, lng), 100);
+  } else {
+    _fillDirectionsField(which, name, lat, lng);
+  }
+}
+
+function _fillDirectionsField(which, name, lat, lng) {
+  const inputId = which === 'from' ? 'directions-from' : 'directions-to';
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  input.value = name;
+  input.dataset.type = 'place';
+  input.dataset.lat = lat;
+  input.dataset.lng = lng;
+  input.dataset.stationName = '';
+
+  // Add a pin marker on the map
+  const pinEl = document.createElement('div');
+  pinEl.className = which === 'from' ? 'directions-pin origin-pin' : 'directions-pin dest-pin';
+  pinEl.textContent = which === 'from' ? 'A' : 'B';
+
+  if (which === 'from') {
+    if (pinFromMarker) pinFromMarker.remove();
+    pinFromMarker = new mapboxgl.Marker({ element: pinEl, anchor: 'center' })
+      .setLngLat([lng, lat]).addTo(hoodMap);
+  } else {
+    if (pinToMarker) pinToMarker.remove();
+    pinToMarker = new mapboxgl.Marker({ element: pinEl, anchor: 'center' })
+      .setLngLat([lng, lat]).addTo(hoodMap);
+  }
+}

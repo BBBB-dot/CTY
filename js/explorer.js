@@ -239,6 +239,21 @@ function updateExplorerMarkers() {
   });
 }
 
+// ─── Directions integration ─────────────────────────────────────
+function directionsFromSpot() {
+  if (!currentExplorerPopupItem) return;
+  const item = currentExplorerPopupItem;
+  closeExplorerPopup();
+  setDirectionsField('from', item.name, item.lat, item.lng);
+}
+
+function directionsToSpot() {
+  if (!currentExplorerPopupItem) return;
+  const item = currentExplorerPopupItem;
+  closeExplorerPopup();
+  setDirectionsField('to', item.name, item.lat, item.lng);
+}
+
 // Close popup when clicking outside
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.explorer-popup') && !e.target.closest('.cty-marker')) {
