@@ -441,7 +441,7 @@ function startTrainRide(lineId) {
 
   let currentIdx = 0;
   const totalFrames = denseRoute.length;
-  const msPerFrame = 50;
+  const msPerFrame = 70;
 
   // Pre-compute station trigger indices
   const stationTriggers = lineStations.map(s => {
@@ -472,8 +472,10 @@ function startTrainRide(lineId) {
     stationTriggers.forEach((triggerIdx, stationI) => {
       if (currentIdx >= triggerIdx && !highlightedStations.has(stationI)) {
         highlightedStations.add(stationI);
-        highlightStopInList(stationI);
-        pulseStationOnMap(lineStations[stationI], line.color);
+        const station = lineStations[stationI];
+        const hoodName = getNeighborhoodNameAtPoint([station.lng, station.lat]);
+        highlightStopInList(stationI, hoodName);
+        pulseStationOnMap(station, line.color);
       }
     });
 
@@ -483,10 +485,10 @@ function startTrainRide(lineId) {
     trainAnimationId = setTimeout(animate, msPerFrame);
   }
 
-  // Zoom to fit
+  // Zoom to fit — preserve the NYC bearing so map doesn't tilt back
   const bounds = new mapboxgl.LngLatBounds();
   stationCoords.forEach(pt => bounds.extend(pt));
-  hoodMap.fitBounds(bounds, { padding: 60, duration: 800 });
+  hoodMap.fitBounds(bounds, { padding: 60, duration: 800, bearing: 29 });
 
   // Start after zoom
   setTimeout(animate, 900);
@@ -523,14 +525,34 @@ function interpolateRoute(route, numPoints) {
 }
 
 // ─── Highlight stop in the list ────────────────────────────────
-function highlightStopInList(stationIdx) {
+function highlightStopInList(stationIdx, hoodName) {
   const list = document.getElementById('subway-stops-list');
   if (!list) return;
   const items = list.querySelectorAll('.subway-stop-item');
   if (items[stationIdx]) {
     items[stationIdx].classList.add('highlighted');
+    // Add neighborhood label if found
+    if (hoodName && !items[stationIdx].querySelector('.subway-stop-hood')) {
+      const hoodLabel = document.createElement('span');
+      hoodLabel.className = 'subway-stop-hood';
+      hoodLabel.textContent = hoodName;
+      items[stationIdx].appendChild(hoodLabel);
+    }
     items[stationIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
+}
+
+// ─── Get neighborhood name at a map point ──────────────────────
+function getNeighborhoodNameAtPoint(lngLat) {
+  if (!hoodMap) return null;
+  try {
+    const point = hoodMap.project(lngLat);
+    const features = hoodMap.queryRenderedFeatures(point, { layers: ['nta-fill'] });
+    if (features.length > 0) {
+      return features[0].properties.ntaName || features[0].properties.name || null;
+    }
+  } catch (e) {}
+  return null;
 }
 
 // ─── Pulse a station on the map ────────────────────────────────

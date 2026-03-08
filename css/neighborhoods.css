@@ -634,6 +634,28 @@
   bottom: 50%;
 }
 
+.subway-stop-hood {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-3, #999);
+  opacity: 0;
+  animation: fadeInHood 0.4s ease forwards;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.subway-stop-item.highlighted .subway-stop-hood {
+  color: var(--text-2, #777);
+}
+
+@keyframes fadeInHood {
+  from { opacity: 0; transform: translateX(4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 /* Train animation marker */
 .subway-train-marker {
   width: 20px;
