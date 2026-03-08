@@ -519,7 +519,7 @@ function startTrainRide(lineId) {
         const hoodName = getNeighborhoodNameAtPoint([station.lng, station.lat]);
         highlightStopInList(stationI, hoodName);
         pulseStationOnMap(station, line.color);
-        showStationToast(station.name, hoodName, line.color);
+        showStationToast(station.name, hoodName, line.color, station);
       }
     });
 
@@ -665,34 +665,46 @@ function getLocalityKeyAtPoint(lat, lng) {
   return null;
 }
 
-// ─── Show station name toast on screen ──────────────────────────
-let stationToastTimeout = null;
+// ─── Show station name popup on the map ─────────────────────────
+let stationPopup = null;
+let stationPopupTimeout = null;
 
-function showStationToast(stationName, hoodName, color) {
-  const mapWrap = document.querySelector('.hood-map-wrap');
-  if (!mapWrap) return;
+function showStationToast(stationName, hoodName, color, station) {
+  if (!hoodMap) return;
 
-  // Remove any existing toast
-  const existing = mapWrap.querySelector('.subway-station-toast');
-  if (existing) existing.remove();
-  if (stationToastTimeout) clearTimeout(stationToastTimeout);
-
-  const toast = document.createElement('div');
-  toast.className = 'subway-station-toast';
-
-  let label = `<span class="toast-dot" style="background:${color}"></span>${escHtml(stationName)}`;
-  if (hoodName) {
-    label += `<span style="font-weight:400; opacity:0.6; margin-left:6px">· ${escHtml(hoodName)}</span>`;
+  // Remove any existing popup
+  if (stationPopup) {
+    stationPopup.remove();
+    stationPopup = null;
   }
-  toast.innerHTML = label;
+  if (stationPopupTimeout) clearTimeout(stationPopupTimeout);
 
-  mapWrap.appendChild(toast);
+  let html = `<div class="subway-station-popup">`;
+  html += `<span class="popup-dot" style="background:${color}"></span>`;
+  html += `<strong>${escHtml(stationName)}</strong>`;
+  if (hoodName) {
+    html += `<span class="popup-hood">· ${escHtml(hoodName)}</span>`;
+  }
+  html += `</div>`;
 
-  // Fade out after 2 seconds
-  stationToastTimeout = setTimeout(() => {
-    toast.classList.add('fading');
-    setTimeout(() => toast.remove(), 400);
-  }, 2000);
+  stationPopup = new mapboxgl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    anchor: 'bottom',
+    offset: [0, -8],
+    className: 'subway-station-mapbox-popup',
+  })
+    .setLngLat([station.lng, station.lat])
+    .setHTML(html)
+    .addTo(hoodMap);
+
+  // Fade out after 2.5 seconds
+  stationPopupTimeout = setTimeout(() => {
+    if (stationPopup) {
+      stationPopup.remove();
+      stationPopup = null;
+    }
+  }, 2500);
 }
 
 // ─── Pulse a station on the map ────────────────────────────────
@@ -833,10 +845,9 @@ function stopTrainAnimation() {
     trainMarker.remove();
     trainMarker = null;
   }
-  // Remove station toast
-  if (stationToastTimeout) clearTimeout(stationToastTimeout);
-  const toast = document.querySelector('.subway-station-toast');
-  if (toast) toast.remove();
+  // Remove station popup
+  if (stationPopupTimeout) clearTimeout(stationPopupTimeout);
+  if (stationPopup) { stationPopup.remove(); stationPopup = null; }
 
   clearSubwayHighlights();
 }
