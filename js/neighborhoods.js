@@ -185,6 +185,11 @@ function initHoodMap() {
   hoodMap.touchZoomRotate.disableRotation();
 
   hoodMap.on('load', function() {
+    // Hide native Mapbox neighborhood labels to avoid duplicates with our custom labels
+    if (hoodMap.getLayer('settlement-subdivision-label')) {
+      hoodMap.setLayoutProperty('settlement-subdivision-label', 'visibility', 'none');
+    }
+
     // Load NTA GeoJSON
     fetch('data/nyc-neighborhoods.json')
       .then(r => r.json())
