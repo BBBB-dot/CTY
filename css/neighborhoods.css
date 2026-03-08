@@ -679,6 +679,100 @@
 }
 
 /* ============================================
+   SUBWAY LINE PICKER PANEL
+   ============================================ */
+
+.subway-picker-panel {
+  position: absolute;
+  bottom: 64px;
+  left: 16px;
+  z-index: 15;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  width: 260px;
+  overflow: hidden;
+  animation: popupSlideIn 0.2s ease-out;
+}
+
+.subway-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subway-picker-title {
+  font-family: 'Syne', serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.subway-picker-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+.subway-picker-close:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.subway-picker-grid {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.subway-badge-group {
+  display: flex;
+  gap: 5px;
+  margin-right: 6px;
+}
+
+.subway-line-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  opacity: 0.4;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.subway-line-badge:hover {
+  opacity: 0.7;
+  transform: scale(1.1);
+}
+
+.subway-line-badge.active {
+  opacity: 1;
+  border-color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transform: scale(1.1);
+}
+
+/* ============================================
    MINI MAP
    ============================================ */
 
