@@ -747,48 +747,6 @@ function augmentNTALayerForSubway() {
   } catch (e) {}
 }
 
-// ─── Add neighborhood name labels to the map ────────────────────
-function addNeighborhoodLabels() {
-  if (!hoodMap) return;
-  if (hoodMap.getLayer('nta-labels')) return; // already added
-
-  try {
-    // Use the existing nta-polygons source which has a 'name' property
-    hoodMap.addLayer({
-      id: 'nta-labels',
-      type: 'symbol',
-      source: 'nta-polygons',
-      layout: {
-        'text-field': ['get', 'name'],
-        'text-size': [
-          'interpolate', ['linear'], ['zoom'],
-          10, 9,
-          12, 11,
-          14, 13,
-          16, 15
-        ],
-        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-transform': 'uppercase',
-        'text-letter-spacing': 0.05,
-        'text-max-width': 8,
-        'text-anchor': 'center',
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-        'text-padding': 4,
-        'symbol-placement': 'point',
-      },
-      paint: {
-        'text-color': 'rgba(30, 30, 30, 0.75)',
-        'text-halo-color': 'rgba(255, 255, 255, 0.85)',
-        'text-halo-width': 1.5,
-        'text-halo-blur': 0.5,
-      }
-    });
-  } catch (e) {
-    console.warn('Could not add neighborhood labels:', e);
-  }
-}
-
 // ─── Initialize on map ready ──────────────────────────────────
 (function() {
   const waitForMap = setInterval(() => {
@@ -796,7 +754,6 @@ function addNeighborhoodLabels() {
       clearInterval(waitForMap);
       setTimeout(() => {
         augmentNTALayerForSubway();
-        addNeighborhoodLabels();
       }, 500);
     }
   }, 200);
