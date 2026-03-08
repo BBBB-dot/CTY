@@ -538,6 +538,7 @@ function setupMapEvents() {
   // ─── NTA polygon events (non-sub neighborhoods) ───
   if (hoodMap.getLayer('nta-fill')) {
     hoodMap.on('click', 'nta-fill', function(e) {
+      if (e.originalEvent && e.originalEvent._subwayHandled) return;
       if (!e.features || !e.features.length) return;
       const props = e.features[0].properties;
       openHoodDetail(props.ntaCode);
@@ -573,6 +574,7 @@ function setupMapEvents() {
   // ─── Locality polygon events (sub-neighborhoods) ───
   if (hoodMap.getLayer('locality-fill')) {
     hoodMap.on('click', 'locality-fill', function(e) {
+      if (e.originalEvent && e.originalEvent._subwayHandled) return;
       if (!e.features || !e.features.length) return;
       const props = e.features[0].properties;
       openHoodDetail(props.subId);

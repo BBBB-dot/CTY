@@ -206,6 +206,23 @@ function addSingleLine(lineId) {
     }
   });
 
+  // Invisible wide hitbox for easier clicking (20px wide, transparent)
+  const hitboxId = 'subway-hitbox-' + lineId;
+  hoodMap.addLayer({
+    id: hitboxId,
+    type: 'line',
+    source: sourceId,
+    layout: {
+      'line-join': 'round',
+      'line-cap': 'round'
+    },
+    paint: {
+      'line-color': 'transparent',
+      'line-width': 20,
+      'line-opacity': 0
+    }
+  });
+
   // Add station dots for this line
   const dotsGeoJSON = {
     type: 'FeatureCollection',
@@ -259,17 +276,20 @@ function addSingleLine(lineId) {
     }
   });
 
-  // Click handlers on the route line
-  hoodMap.on('click', routeId, function(e) {
+  // Click handlers on the wide hitbox layer for easy clicking
+  hoodMap.on('click', hitboxId, function(e) {
     e.preventDefault();
-    if (e.originalEvent) e.originalEvent.stopPropagation();
+    if (e.originalEvent) {
+      e.originalEvent.stopPropagation();
+      e.originalEvent._subwayHandled = true; // Flag for neighborhood handler
+    }
     showSubwayInfo(line);
   });
 
-  hoodMap.on('mouseenter', routeId, function() {
+  hoodMap.on('mouseenter', hitboxId, function() {
     hoodMap.getCanvas().style.cursor = 'pointer';
   });
-  hoodMap.on('mouseleave', routeId, function() {
+  hoodMap.on('mouseleave', hitboxId, function() {
     hoodMap.getCanvas().style.cursor = '';
   });
 
@@ -284,6 +304,7 @@ function removeSingleLine(lineId) {
   const sourceId = 'subway-route-' + lineId;
   const casingId = 'subway-casing-' + lineId;
   const routeId = 'subway-route-layer-' + lineId;
+  const hitboxId = 'subway-hitbox-' + lineId;
   const dotsId = 'subway-dots-' + lineId;
 
   // Remove layers
@@ -292,6 +313,7 @@ function removeSingleLine(lineId) {
     if (hoodMap.getLayer(layerId)) hoodMap.removeLayer(layerId);
   });
 
+  if (hoodMap.getLayer(hitboxId)) hoodMap.removeLayer(hitboxId);
   if (hoodMap.getLayer(routeId)) hoodMap.removeLayer(routeId);
   if (hoodMap.getLayer(casingId)) hoodMap.removeLayer(casingId);
 
