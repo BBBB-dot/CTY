@@ -942,7 +942,7 @@ function rideDirectionsRoute() {
   drawRideRoute(route);
 
   const denseRoute = interpolateRoute(allCoords, 2000);
-  const totalDurationMs = 90000;
+  const totalDurationMs = 30000;
 
   const el = document.createElement('div');
   el.className = 'subway-train-marker';

@@ -79,6 +79,15 @@ function addMarkerToMap(type, item) {
     el.innerHTML = '<span style="color:#fff">✓</span>';
   }
 
+  // Hover tooltip with spot name
+  const tooltip = document.createElement('div');
+  tooltip.className = 'spot-tooltip';
+  tooltip.textContent = item.name;
+  el.appendChild(tooltip);
+
+  el.onmouseenter = () => { tooltip.style.opacity = '1'; tooltip.style.transform = 'translateX(-50%) translateY(-4px)'; };
+  el.onmouseleave = () => { tooltip.style.opacity = '0'; tooltip.style.transform = 'translateX(-50%) translateY(0)'; };
+
   el.onclick = (e) => {
     e.stopPropagation();
     showExplorerPopup(type, item.id);

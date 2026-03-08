@@ -439,8 +439,8 @@ function startTrainRide(lineId) {
     .setLngLat(denseRoute[0])
     .addTo(hoodMap);
 
-  // Total ride duration in milliseconds (~90 seconds for a full line)
-  const totalDurationMs = 90000;
+  // Total ride duration in milliseconds (~30 seconds for a full line)
+  const totalDurationMs = 30000;
 
   // Pre-compute cumulative distances for time-based interpolation
   const cumDist = [0];
