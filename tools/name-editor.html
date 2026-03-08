@@ -292,27 +292,37 @@ function initEditor(geo) {
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  // Build map polygons — one per parent NTA, labeled with YOUR names
+  // Build NTA polygon features (for fill/outline/click)
   const ntaCodes = [...new Set(manhattanHoods.map(h => h.ntaCode))];
-  const mapFeatures = [];
+  const polyFeatures = [];
 
   ntaCodes.forEach((code, i) => {
     const f = ntaFeatureMap[code];
     if (!f) return;
-    const subs = manhattanHoods.filter(h => h.ntaCode === code);
-    const label = subs.map(h => nameOverrides[h.id] || h.name).join(' · ');
-
-    mapFeatures.push({
+    polyFeatures.push({
       type: 'Feature',
       id: i,
-      properties: { ntaCode: code, name: label, _idx: i },
+      properties: { ntaCode: code, _idx: i },
       geometry: f.geometry,
     });
   });
 
   map.addSource('manhattan-nta', {
     type: 'geojson',
-    data: { type: 'FeatureCollection', features: mapFeatures },
+    data: { type: 'FeatureCollection', features: polyFeatures },
+  });
+
+  // Build individual point labels — one per neighborhood at its center
+  const labelFeatures = manhattanHoods.map((h, i) => ({
+    type: 'Feature',
+    id: i,
+    properties: { hoodId: h.id, name: nameOverrides[h.id] || h.name, ntaCode: h.ntaCode },
+    geometry: { type: 'Point', coordinates: h.center },
+  }));
+
+  map.addSource('hood-labels', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: labelFeatures },
   });
 
   map.addLayer({
@@ -336,17 +346,17 @@ function initEditor(geo) {
   });
 
   map.addLayer({
-    id: 'manhattan-labels', type: 'symbol', source: 'manhattan-nta',
+    id: 'manhattan-labels', type: 'symbol', source: 'hood-labels',
     layout: {
       'text-field': ['get', 'name'],
       'text-size': ['interpolate', ['linear'], ['zoom'], 10, 8, 12, 11, 14, 13, 16, 15],
       'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
       'text-transform': 'uppercase',
       'text-letter-spacing': 0.04,
-      'text-max-width': 12,
+      'text-max-width': 8,
       'text-anchor': 'center',
       'text-allow-overlap': false,
-      'text-padding': 3,
+      'text-padding': 2,
     },
     paint: {
       'text-color': ['case', ['boolean', ['feature-state', 'edited'], false], '#FFD700', 'rgba(255,255,255,0.7)'],
@@ -481,32 +491,21 @@ function resetAll() {
 
 // ─── Update map labels ───
 function updateMapLabels() {
-  const src = map.getSource('manhattan-nta');
+  const src = map.getSource('hood-labels');
   if (!src) return;
-  const ntaCodes = [...new Set(manhattanHoods.map(h => h.ntaCode))];
-  const features = [];
 
-  ntaCodes.forEach((code, i) => {
-    const f = ntaFeatureMap[code];
-    if (!f) return;
-    const subs = manhattanHoods.filter(h => h.ntaCode === code);
-    const label = subs.map(h => nameOverrides[h.id] || h.name).join(' · ');
-    const anyEdited = subs.some(h => !!nameOverrides[h.id]);
+  const labelFeatures = manhattanHoods.map((h, i) => ({
+    type: 'Feature',
+    id: i,
+    properties: { hoodId: h.id, name: nameOverrides[h.id] || h.name, ntaCode: h.ntaCode },
+    geometry: { type: 'Point', coordinates: h.center },
+  }));
 
-    features.push({
-      type: 'Feature', id: i,
-      properties: { ntaCode: code, name: label, _idx: i },
-      geometry: f.geometry,
-    });
-  });
-
-  src.setData({ type: 'FeatureCollection', features });
+  src.setData({ type: 'FeatureCollection', features: labelFeatures });
 
   setTimeout(() => {
-    ntaCodes.forEach((code, i) => {
-      const subs = manhattanHoods.filter(h => h.ntaCode === code);
-      const anyEdited = subs.some(h => !!nameOverrides[h.id]);
-      map.setFeatureState({ source: 'manhattan-nta', id: i }, { edited: anyEdited });
+    manhattanHoods.forEach((h, i) => {
+      map.setFeatureState({ source: 'hood-labels', id: i }, { edited: !!nameOverrides[h.id] });
     });
   }, 50);
 }
