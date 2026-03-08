@@ -255,18 +255,18 @@ function addSingleLine(lineId) {
     data: dotsGeoJSON
   });
 
-  // Transfer station dots (larger, darker)
+  // Transfer station dots (slightly larger)
   hoodMap.addLayer({
     id: dotsId + '-transfer',
     type: 'circle',
     source: dotsId,
     filter: ['==', ['get', 'isTransfer'], true],
     paint: {
-      'circle-radius': 6,
+      'circle-radius': 3.5,
       'circle-color': '#ffffff',
       'circle-stroke-color': line.color,
-      'circle-stroke-width': 2.5,
-      'circle-opacity': 0.95
+      'circle-stroke-width': 1.5,
+      'circle-opacity': 0.9
     }
   });
 
@@ -277,11 +277,11 @@ function addSingleLine(lineId) {
     source: dotsId,
     filter: ['==', ['get', 'isTransfer'], false],
     paint: {
-      'circle-radius': 4,
+      'circle-radius': 2.5,
       'circle-color': '#ffffff',
       'circle-stroke-color': line.color,
-      'circle-stroke-width': 2,
-      'circle-opacity': 0.9
+      'circle-stroke-width': 1.2,
+      'circle-opacity': 0.85
     }
   });
 
@@ -441,7 +441,7 @@ function startTrainRide(lineId) {
 
   let currentIdx = 0;
   const totalFrames = denseRoute.length;
-  const msPerFrame = 70;
+  const msPerFrame = 80;
 
   // Pre-compute station trigger indices
   const stationTriggers = lineStations.map(s => {
@@ -460,6 +460,10 @@ function startTrainRide(lineId) {
   const highlightedStations = new Set();
   const highlightedHoods = new Set();
 
+  // Camera follow — track the train closely like riding it
+  let lastCameraUpdate = 0;
+  const cameraInterval = 3; // update camera every N frames for smooth panning
+
   function animate() {
     if (currentIdx >= totalFrames) {
       finishTrainRide(lineId);
@@ -468,6 +472,16 @@ function startTrainRide(lineId) {
 
     const pt = denseRoute[currentIdx];
     trainMarker.setLngLat(pt);
+
+    // Smoothly pan the camera to follow the train
+    if (currentIdx % cameraInterval === 0) {
+      hoodMap.easeTo({
+        center: pt,
+        bearing: 29,
+        duration: msPerFrame * cameraInterval,
+        easing: t => t,
+      });
+    }
 
     stationTriggers.forEach((triggerIdx, stationI) => {
       if (currentIdx >= triggerIdx && !highlightedStations.has(stationI)) {
@@ -485,13 +499,16 @@ function startTrainRide(lineId) {
     trainAnimationId = setTimeout(animate, msPerFrame);
   }
 
-  // Zoom to fit — preserve the NYC bearing so map doesn't tilt back
-  const bounds = new mapboxgl.LngLatBounds();
-  stationCoords.forEach(pt => bounds.extend(pt));
-  hoodMap.fitBounds(bounds, { padding: 60, duration: 800, bearing: 29 });
+  // Zoom in close to the first station, then start riding
+  hoodMap.easeTo({
+    center: denseRoute[0],
+    zoom: 14,
+    bearing: 29,
+    duration: 1000,
+  });
 
-  // Start after zoom
-  setTimeout(animate, 900);
+  // Start after initial zoom
+  setTimeout(animate, 1100);
 }
 
 // ─── Interpolate route into N evenly-spaced points ────────────
@@ -730,12 +747,57 @@ function augmentNTALayerForSubway() {
   } catch (e) {}
 }
 
+// ─── Add neighborhood name labels to the map ────────────────────
+function addNeighborhoodLabels() {
+  if (!hoodMap) return;
+  if (hoodMap.getLayer('nta-labels')) return; // already added
+
+  try {
+    // Use the existing nta-polygons source which has a 'name' property
+    hoodMap.addLayer({
+      id: 'nta-labels',
+      type: 'symbol',
+      source: 'nta-polygons',
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-size': [
+          'interpolate', ['linear'], ['zoom'],
+          10, 9,
+          12, 11,
+          14, 13,
+          16, 15
+        ],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-transform': 'uppercase',
+        'text-letter-spacing': 0.05,
+        'text-max-width': 8,
+        'text-anchor': 'center',
+        'text-allow-overlap': false,
+        'text-ignore-placement': false,
+        'text-padding': 4,
+        'symbol-placement': 'point',
+      },
+      paint: {
+        'text-color': 'rgba(30, 30, 30, 0.75)',
+        'text-halo-color': 'rgba(255, 255, 255, 0.85)',
+        'text-halo-width': 1.5,
+        'text-halo-blur': 0.5,
+      }
+    });
+  } catch (e) {
+    console.warn('Could not add neighborhood labels:', e);
+  }
+}
+
 // ─── Initialize on map ready ──────────────────────────────────
 (function() {
   const waitForMap = setInterval(() => {
     if (hoodMap && hoodMapReady) {
       clearInterval(waitForMap);
-      setTimeout(augmentNTALayerForSubway, 500);
+      setTimeout(() => {
+        augmentNTALayerForSubway();
+        addNeighborhoodLabels();
+      }, 500);
     }
   }, 200);
 })();
