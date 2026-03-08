@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manhattan Neighborhood Name Editor — CTY</title>
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+<style>
+:root {
+  --bg: #141414;
+  --surface: #1c1c1e;
+  --surface2: #2c2c2e;
+  --border: #3a3a3c;
+  --text: #f5f5f5;
+  --text2: #a1a1a6;
+  --accent: #FFD700;
+  --accent2: #FF6B35;
+  --save: #34C759;
+  --danger: #FF453A;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── Sidebar ─── */
+#sidebar {
+  width: 380px;
+  min-width: 380px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#sidebar-header {
+  padding: 16px 20px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+
+#sidebar-header h1 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+#sidebar-header p {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+
+#search-bar {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+#search-bar input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+#search-bar input:focus {
+  border-color: var(--accent);
+}
+
+#stats-bar {
+  padding: 8px 20px;
+  font-size: 11px;
+  color: var(--text2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 16px;
+}
+
+.stat-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.stat-dot.edited { background: var(--accent); }
+.stat-dot.original { background: var(--text2); }
+
+#hood-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.hood-row {
+  padding: 10px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hood-row:hover { background: var(--surface2); }
+.hood-row.active { background: rgba(255, 215, 0, 0.1); border-left: 3px solid var(--accent); }
+.hood-row.edited { background: rgba(255, 215, 0, 0.05); }
+
+.hood-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hood-nta-code {
+  font-size: 10px;
+  color: var(--text2);
+  font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+.hood-original {
+  font-size: 12px;
+  color: var(--text2);
+  text-decoration: line-through;
+  display: none;
+}
+
+.hood-row.edited .hood-original { display: block; }
+
+.hood-display-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hood-row.edited .hood-display-name { color: var(--accent); }
+
+.edit-indicator {
+  font-size: 10px;
+  color: var(--accent);
+  display: none;
+}
+
+.hood-row.edited .edit-indicator { display: inline; }
+
+/* ─── Map ─── */
+#map-container {
+  flex: 1;
+  position: relative;
+}
+
+#map { width: 100%; height: 100%; }
+
+/* ─── Edit popup ─── */
+#edit-popup {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+#edit-popup.visible { display: block; }
+
+#edit-popup h3 {
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+
+#edit-popup .edit-original {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+#edit-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  outline: none;
+  margin-bottom: 16px;
+}
+
+#edit-input:focus { border-color: var(--accent); }
+
+.edit-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.edit-actions button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.edit-actions button:hover { opacity: 0.85; }
+
+.btn-save { background: var(--accent); color: #000; }
+.btn-reset { background: var(--surface2); color: var(--text); border: 1px solid var(--border) !important; }
+.btn-cancel { background: transparent; color: var(--text2); }
+
+/* ─── Top controls ─── */
+#top-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 900;
+  display: flex;
+  gap: 8px;
+}
+
+.top-btn {
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.top-btn:hover { background: var(--surface2); }
+.top-btn.export-btn { background: #065f46; border-color: #10b981; color: #10b981; }
+.top-btn.export-btn:hover { background: #047857; color: #fff; }
+.top-btn.apply-btn { background: #7c2d12; border-color: var(--accent2); color: var(--accent2); }
+.top-btn.apply-btn:hover { background: #9a3412; color: #fff; }
+
+/* ─── Overlay dimmer ─── */
+#overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 999;
+}
+
+#overlay.visible { display: block; }
+
+/* Toast */
+#toast {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--save);
+  color: #000;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 1100;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+#toast.show { opacity: 1; }
+
+/* Scrollbar */
+#hood-list::-webkit-scrollbar { width: 6px; }
+#hood-list::-webkit-scrollbar-track { background: transparent; }
+#hood-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1>Neighborhood Name Editor</h1>
+    <p>Click any Manhattan neighborhood to rename its label</p>
+  </div>
+  <div id="search-bar">
+    <input type="text" id="search-input" placeholder="Search neighborhoods..." />
+  </div>
+  <div id="stats-bar">
+    <div class="stat-badge"><div class="stat-dot edited"></div><span id="edited-count">0</span> edited</div>
+    <div class="stat-badge"><div class="stat-dot original"></div><span id="total-count">0</span> total</div>
+  </div>
+  <div id="hood-list"></div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div id="top-controls">
+    <button class="top-btn" onclick="resetAll()">Reset All</button>
+    <button class="top-btn export-btn" onclick="exportOverrides()">Export JS</button>
+    <button class="top-btn apply-btn" onclick="applyToProject()">Apply to Project</button>
+  </div>
+  <div id="overlay" onclick="closeEdit()"></div>
+  <div id="edit-popup">
+    <h3>Rename neighborhood</h3>
+    <div class="edit-original" id="edit-original-name"></div>
+    <input type="text" id="edit-input" placeholder="New display name..." />
+    <div class="edit-actions">
+      <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
+      <button class="btn-reset" onclick="resetCurrent()">Reset</button>
+      <button class="btn-save" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<script>
+// ─── Config ───
+mapboxgl.accessToken = atob('cGsuZXlKMUlqb2lZbkpwYzJ0aWNtbHpheUlzSW1FaU9pSmpiVzFuZDJKbk5uTXdibWRwTW05eE1XVnRZbTluWTJ0ekluMC5zYnNMbHlrVlYxZVgyelVCcXB4R213');
+
+// Name overrides: NTA code → new display name
+let nameOverrides = {};
+
+// Manhattan NTA data (populated after GeoJSON loads)
+let manhattanNTAs = []; // { code, originalName, feature }
+let activeNTACode = null;
+
+// ─── Map ───
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/dark-v11',
+  center: [-73.98, 40.76],
+  zoom: 12.5,
+  bearing: 29,
+});
+
+map.on('load', () => {
+  fetch('../data/nyc-neighborhoods.json')
+    .then(r => r.json())
+    .then(geo => {
+      loadManhattanNTAs(geo);
+    });
+});
+
+function loadManhattanNTAs(geo) {
+  // Filter for Manhattan NTAs only (ntatype=0, borough=Manhattan)
+  const manhattanFeatures = geo.features.filter(f =>
+    f.properties.borough === 'Manhattan' &&
+    f.properties.ntatype === '0' &&
+    f.properties.name !== 'Central Park'
+  );
+
+  // Build our data array
+  manhattanNTAs = manhattanFeatures.map(f => {
+    // Try to find the NTA code from our mapping
+    const name = f.properties.name;
+    // We'll use the name directly as our key
+    return {
+      originalName: name,
+      feature: f,
+    };
+  });
+
+  // Sort alphabetically
+  manhattanNTAs.sort((a, b) => a.originalName.localeCompare(b.originalName));
+
+  // Add polygon source
+  const fc = {
+    type: 'FeatureCollection',
+    features: manhattanFeatures.map((f, i) => ({
+      ...f,
+      id: i,
+      properties: { ...f.properties, _idx: i }
+    }))
+  };
+
+  map.addSource('manhattan-nta', { type: 'geojson', data: fc });
+
+  map.addLayer({
+    id: 'manhattan-fill',
+    type: 'fill',
+    source: 'manhattan-nta',
+    paint: {
+      'fill-color': [
+        'case',
+        ['boolean', ['feature-state', 'active'], false], 'rgba(255, 215, 0, 0.35)',
+        ['boolean', ['feature-state', 'hover'], false], 'rgba(255, 215, 0, 0.15)',
+        'rgba(255, 255, 255, 0.05)'
+      ],
+      'fill-opacity': 1,
+    }
+  });
+
+  map.addLayer({
+    id: 'manhattan-line',
+    type: 'line',
+    source: 'manhattan-nta',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'active'], false], 'rgba(255, 215, 0, 0.8)',
+        'rgba(255, 255, 255, 0.2)'
+      ],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'active'], false], 2,
+        0.5
+      ],
+    }
+  });
+
+  // Labels
+  map.addLayer({
+    id: 'manhattan-labels',
+    type: 'symbol',
+    source: 'manhattan-nta',
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 8, 13, 12, 16, 15],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-transform': 'uppercase',
+      'text-letter-spacing': 0.04,
+      'text-max-width': 8,
+      'text-anchor': 'center',
+      'text-allow-overlap': false,
+      'text-padding': 3,
+    },
+    paint: {
+      'text-color': [
+        'case',
+        ['boolean', ['feature-state', 'edited'], false], '#FFD700',
+        'rgba(255, 255, 255, 0.7)'
+      ],
+      'text-halo-color': 'rgba(0, 0, 0, 0.85)',
+      'text-halo-width': 1.5,
+    }
+  });
+
+  // Events
+  let hoveredId = null;
+
+  map.on('mousemove', 'manhattan-fill', (e) => {
+    if (hoveredId !== null) {
+      map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: false });
+    }
+    if (e.features.length > 0) {
+      hoveredId = e.features[0].id;
+      map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: true });
+      map.getCanvas().style.cursor = 'pointer';
+    }
+  });
+
+  map.on('mouseleave', 'manhattan-fill', () => {
+    if (hoveredId !== null) {
+      map.setFeatureState({ source: 'manhattan-nta', id: hoveredId }, { hover: false });
+      hoveredId = null;
+    }
+    map.getCanvas().style.cursor = '';
+  });
+
+  map.on('click', 'manhattan-fill', (e) => {
+    if (e.features.length > 0) {
+      const name = e.features[0].properties.name;
+      openEdit(name);
+    }
+  });
+
+  // Build sidebar
+  renderSidebar();
+  updateStats();
+}
+
+// ─── Sidebar ───
+function renderSidebar(filter = '') {
+  const list = document.getElementById('hood-list');
+  const lowerFilter = filter.toLowerCase();
+
+  list.innerHTML = manhattanNTAs
+    .filter(h => !lowerFilter || h.originalName.toLowerCase().includes(lowerFilter))
+    .map(h => {
+      const displayName = nameOverrides[h.originalName] || h.originalName;
+      const isEdited = !!nameOverrides[h.originalName];
+      const isActive = activeNTACode === h.originalName;
+      return `
+        <div class="hood-row ${isEdited ? 'edited' : ''} ${isActive ? 'active' : ''}"
+             onclick="openEdit('${escAttr(h.originalName)}')"
+             data-name="${escAttr(h.originalName)}">
+          <div class="hood-row-top">
+            <div class="hood-display-name">${esc(displayName)}</div>
+            <span class="edit-indicator">edited</span>
+          </div>
+          ${isEdited ? `<div class="hood-original">${esc(h.originalName)}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+}
+
+// ─── Edit popup ───
+function openEdit(originalName) {
+  activeNTACode = originalName;
+
+  // Highlight on map
+  manhattanNTAs.forEach((h, i) => {
+    map.setFeatureState(
+      { source: 'manhattan-nta', id: i },
+      { active: h.originalName === originalName }
+    );
+  });
+
+  // Zoom to it
+  const nta = manhattanNTAs.find(h => h.originalName === originalName);
+  if (nta && nta.feature.geometry) {
+    const bounds = new mapboxgl.LngLatBounds();
+    const addCoords = (coords) => {
+      if (typeof coords[0] === 'number') {
+        bounds.extend(coords);
+      } else {
+        coords.forEach(addCoords);
+      }
+    };
+    addCoords(nta.feature.geometry.coordinates);
+    map.fitBounds(bounds, { padding: 100, duration: 500, bearing: 29 });
+  }
+
+  document.getElementById('edit-original-name').textContent = originalName;
+  document.getElementById('edit-input').value = nameOverrides[originalName] || originalName;
+  document.getElementById('edit-popup').classList.add('visible');
+  document.getElementById('overlay').classList.add('visible');
+  document.getElementById('edit-input').focus();
+  document.getElementById('edit-input').select();
+
+  renderSidebar(document.getElementById('search-input').value);
+}
+
+function closeEdit() {
+  document.getElementById('edit-popup').classList.remove('visible');
+  document.getElementById('overlay').classList.remove('visible');
+  activeNTACode = null;
+
+  manhattanNTAs.forEach((h, i) => {
+    map.setFeatureState({ source: 'manhattan-nta', id: i }, { active: false });
+  });
+
+  renderSidebar(document.getElementById('search-input').value);
+}
+
+function saveEdit() {
+  const originalName = activeNTACode;
+  const newName = document.getElementById('edit-input').value.trim();
+
+  if (!newName || newName === originalName) {
+    delete nameOverrides[originalName];
+  } else {
+    nameOverrides[originalName] = newName;
+  }
+
+  // Update the label on the map
+  updateMapLabels();
+  updateStats();
+  closeEdit();
+  toast('Saved: ' + (nameOverrides[originalName] || originalName));
+}
+
+function resetCurrent() {
+  const originalName = activeNTACode;
+  delete nameOverrides[originalName];
+  document.getElementById('edit-input').value = originalName;
+  updateMapLabels();
+  updateStats();
+  closeEdit();
+  toast('Reset to original');
+}
+
+function resetAll() {
+  if (!confirm('Reset all edits?')) return;
+  nameOverrides = {};
+  updateMapLabels();
+  updateStats();
+  renderSidebar(document.getElementById('search-input').value);
+  toast('All edits cleared');
+}
+
+// ─── Update map labels ───
+function updateMapLabels() {
+  // Rebuild the GeoJSON source with updated names
+  const src = map.getSource('manhattan-nta');
+  if (!src) return;
+
+  const features = manhattanNTAs.map((h, i) => ({
+    ...h.feature,
+    id: i,
+    properties: {
+      ...h.feature.properties,
+      name: nameOverrides[h.originalName] || h.originalName,
+      _idx: i,
+    }
+  }));
+
+  src.setData({ type: 'FeatureCollection', features });
+
+  // Set edited state for styling
+  setTimeout(() => {
+    manhattanNTAs.forEach((h, i) => {
+      map.setFeatureState(
+        { source: 'manhattan-nta', id: i },
+        { edited: !!nameOverrides[h.originalName] }
+      );
+    });
+  }, 50);
+}
+
+function updateStats() {
+  document.getElementById('edited-count').textContent = Object.keys(nameOverrides).length;
+  document.getElementById('total-count').textContent = manhattanNTAs.length;
+}
+
+// ─── Export ───
+function exportOverrides() {
+  const entries = Object.entries(nameOverrides);
+  if (entries.length === 0) {
+    toast('No edits to export');
+    return;
+  }
+
+  let js = '// Neighborhood display name overrides\n';
+  js += '// Maps original NTA names → preferred display names\n';
+  js += 'const NTA_DISPLAY_NAMES = {\n';
+  entries.sort((a, b) => a[0].localeCompare(b[0]));
+  entries.forEach(([orig, display]) => {
+    js += `  '${orig.replace(/'/g, "\\'")}': '${display.replace(/'/g, "\\'")}',\n`;
+  });
+  js += '};\n';
+
+  // Copy to clipboard
+  navigator.clipboard.writeText(js).then(() => {
+    toast('Copied to clipboard!');
+  }).catch(() => {
+    // Fallback: download as file
+    const blob = new Blob([js], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'nta-display-names.js';
+    a.click();
+    toast('Downloaded nta-display-names.js');
+  });
+}
+
+function applyToProject() {
+  const entries = Object.entries(nameOverrides);
+  if (entries.length === 0) {
+    toast('No edits to apply');
+    return;
+  }
+
+  let msg = 'This will generate a code snippet to add to your project.\n\n';
+  msg += 'Edits:\n';
+  entries.forEach(([orig, display]) => {
+    msg += `  "${orig}" → "${display}"\n`;
+  });
+  msg += '\nCopy the exported JS and add it to your project?';
+
+  if (confirm(msg)) {
+    exportOverrides();
+  }
+}
+
+// ─── Utilities ───
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escAttr(s) {
+  return s.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._timeout);
+  el._timeout = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// Search
+document.getElementById('search-input').addEventListener('input', (e) => {
+  renderSidebar(e.target.value);
+});
+
+// Enter to save in edit popup
+document.getElementById('edit-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') saveEdit();
+  if (e.key === 'Escape') closeEdit();
+});
+</script>
+</body>
+</html>
