@@ -3,9 +3,17 @@
 // ============================================
 
 let directionsPanel = null;
-let directionsRoute = null; // current computed route (includes walk legs)
-let directionsLayers = []; // map layer IDs to clean up
+let directionsRoute = null;
+let directionsLayers = [];  // map layer IDs to clean up
 let directionsMarkers = []; // map markers to clean up
+let rideRouteLayers = [];   // route layers drawn for the ride animation
+let rideRouteMarkers = [];  // markers drawn for the ride animation
+
+// Map-click pin mode
+let pinMode = null; // 'from' or 'to' or null
+let pinClickHandler = null;
+let pinFromMarker = null;
+let pinToMarker = null;
 
 // ─── Build the station graph on demand ─────────────────────────
 let subwayGraph = null;
@@ -42,7 +50,6 @@ function buildSubwayGraph() {
     });
   });
 
-  // Transfer edges: stations within 300m on different lines
   const TRANSFER_RADIUS_M = 300;
   const allEntries = [];
   for (const name in stationIndex) {
@@ -158,7 +165,7 @@ function buildRouteDescription(pathKeys, graph) {
 async function geocodeAddress(query) {
   if (!query || query.trim().length < 2) return [];
   const token = typeof MAPBOX_TOKEN !== 'undefined' ? MAPBOX_TOKEN : '';
-  const bbox = '-74.26,40.49,-73.70,40.92'; // NYC bounding box
+  const bbox = '-74.26,40.49,-73.70,40.92';
   const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&bbox=${bbox}&limit=5&types=address,poi,neighborhood,place`;
 
   try {
@@ -176,6 +183,20 @@ async function geocodeAddress(query) {
     console.error('Geocoding error:', e);
   }
   return [];
+}
+
+// ─── Reverse geocode a lat/lng to a place name ─────────────────
+async function reverseGeocode(lat, lng) {
+  const token = typeof MAPBOX_TOKEN !== 'undefined' ? MAPBOX_TOKEN : '';
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&limit=1&types=address,poi`;
+  try {
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.features && data.features.length > 0) {
+      return data.features[0].place_name;
+    }
+  } catch (e) {}
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
 // ─── Find nearest subway station to a lat/lng ──────────────────
@@ -206,8 +227,7 @@ function walkingMinutes(lat1, lng1, lat2, lng2) {
   const dlat = (lat1 - lat2) * 111000;
   const dlng = (lng1 - lng2) * 85000;
   const distM = Math.sqrt(dlat * dlat + dlng * dlng);
-  // ~80m/min walking speed, 1.3x Manhattan grid factor
-  return Math.round((distM * 1.3) / 80);
+  return Math.max(1, Math.round((distM * 1.3) / 80));
 }
 
 // ─── Get all unique station names ──────────────────────────────
@@ -232,7 +252,10 @@ function getStationLines(stationName) {
 
 // ─── Open directions panel ─────────────────────────────────────
 function openDirectionsPanel() {
-  if (directionsPanel) return;
+  if (directionsPanel) {
+    closeDirectionsPanel();
+    return;
+  }
 
   const mapWrap = document.querySelector('.hood-map-wrap');
   if (!mapWrap) return;
@@ -249,16 +272,23 @@ function openDirectionsPanel() {
     <div class="directions-inputs">
       <div class="directions-input-row">
         <span class="directions-label">From</span>
-        <input type="text" id="directions-from" class="directions-input" placeholder="Address, place, or station..." autocomplete="off">
+        <div class="directions-input-wrap">
+          <input type="text" id="directions-from" class="directions-input" placeholder="Address, place, or station..." autocomplete="off">
+          <button class="directions-pin-btn" id="pin-from-btn" onclick="startPinMode('from')" title="Drop pin on map">📌</button>
+        </div>
         <div class="directions-suggestions" id="suggestions-from"></div>
       </div>
       <button class="directions-swap" onclick="swapDirections()" title="Swap">⇅</button>
       <div class="directions-input-row">
         <span class="directions-label">To</span>
-        <input type="text" id="directions-to" class="directions-input" placeholder="Address, place, or station..." autocomplete="off">
+        <div class="directions-input-wrap">
+          <input type="text" id="directions-to" class="directions-input" placeholder="Address, place, or station..." autocomplete="off">
+          <button class="directions-pin-btn" id="pin-to-btn" onclick="startPinMode('to')" title="Drop pin on map">📌</button>
+        </div>
         <div class="directions-suggestions" id="suggestions-to"></div>
       </div>
     </div>
+    <div class="directions-pin-hint" id="pin-hint" style="display:none"></div>
     <button class="directions-go-btn" id="directions-go-btn" onclick="computeDirections()">Get Directions</button>
     <div class="directions-result" id="directions-result"></div>
   `;
@@ -266,17 +296,92 @@ function openDirectionsPanel() {
   mapWrap.appendChild(panel);
   directionsPanel = panel;
 
-  // Set up hybrid autocomplete (stations + geocoded places)
   setupHybridAutocomplete('directions-from', 'suggestions-from');
   setupHybridAutocomplete('directions-to', 'suggestions-to');
 }
 
 // ─── Close directions panel ────────────────────────────────────
 function closeDirectionsPanel() {
+  stopPinMode();
   clearDirectionsFromMap();
   if (directionsPanel) {
     directionsPanel.remove();
     directionsPanel = null;
+  }
+}
+
+// ─── Pin mode: click on map to set origin/destination ──────────
+function startPinMode(which) {
+  stopPinMode();
+  pinMode = which;
+
+  const hint = document.getElementById('pin-hint');
+  if (hint) {
+    hint.textContent = `Click on the map to set your ${which === 'from' ? 'starting point' : 'destination'}`;
+    hint.style.display = 'block';
+  }
+
+  // Highlight the active pin button
+  const btnId = which === 'from' ? 'pin-from-btn' : 'pin-to-btn';
+  const btn = document.getElementById(btnId);
+  if (btn) btn.classList.add('active');
+
+  if (hoodMap) {
+    hoodMap.getCanvas().style.cursor = 'crosshair';
+
+    pinClickHandler = async function(e) {
+      const { lng, lat } = e.lngLat;
+
+      // Place/update the pin marker
+      const pinEl = document.createElement('div');
+      pinEl.className = 'directions-pin ' + (which === 'from' ? 'origin-pin' : 'dest-pin');
+      pinEl.textContent = which === 'from' ? 'A' : 'B';
+
+      if (which === 'from') {
+        if (pinFromMarker) pinFromMarker.remove();
+        pinFromMarker = new mapboxgl.Marker({ element: pinEl, anchor: 'center' })
+          .setLngLat([lng, lat]).addTo(hoodMap);
+      } else {
+        if (pinToMarker) pinToMarker.remove();
+        pinToMarker = new mapboxgl.Marker({ element: pinEl, anchor: 'center' })
+          .setLngLat([lng, lat]).addTo(hoodMap);
+      }
+
+      // Reverse geocode and fill input
+      const inputId = which === 'from' ? 'directions-from' : 'directions-to';
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.value = 'Loading...';
+        input.dataset.type = 'place';
+        input.dataset.lat = lat;
+        input.dataset.lng = lng;
+        input.dataset.stationName = '';
+
+        const placeName = await reverseGeocode(lat, lng);
+        input.value = placeName;
+      }
+
+      stopPinMode();
+    };
+
+    hoodMap.once('click', pinClickHandler);
+  }
+}
+
+function stopPinMode() {
+  pinMode = null;
+
+  const hint = document.getElementById('pin-hint');
+  if (hint) hint.style.display = 'none';
+
+  document.querySelectorAll('.directions-pin-btn.active').forEach(b => b.classList.remove('active'));
+
+  if (hoodMap) {
+    hoodMap.getCanvas().style.cursor = '';
+    if (pinClickHandler) {
+      hoodMap.off('click', pinClickHandler);
+      pinClickHandler = null;
+    }
   }
 }
 
@@ -290,19 +395,27 @@ function swapDirections() {
   const tmpData = fromEl.dataset.lat;
   const tmpLng = fromEl.dataset.lng;
   const tmpType = fromEl.dataset.type;
+  const tmpStation = fromEl.dataset.stationName;
 
   fromEl.value = toEl.value;
   fromEl.dataset.lat = toEl.dataset.lat || '';
   fromEl.dataset.lng = toEl.dataset.lng || '';
   fromEl.dataset.type = toEl.dataset.type || '';
+  fromEl.dataset.stationName = toEl.dataset.stationName || '';
 
   toEl.value = tmpVal;
   toEl.dataset.lat = tmpData || '';
   toEl.dataset.lng = tmpLng || '';
   toEl.dataset.type = tmpType || '';
+  toEl.dataset.stationName = tmpStation || '';
+
+  // Swap pin markers too
+  const tmpMarker = pinFromMarker;
+  pinFromMarker = pinToMarker;
+  pinToMarker = tmpMarker;
 }
 
-// ─── Hybrid autocomplete: stations + Mapbox geocoding ──────────
+// ─── Hybrid autocomplete ───────────────────────────────────────
 function setupHybridAutocomplete(inputId, suggestionsId) {
   const input = document.getElementById(inputId);
   const sugBox = document.getElementById(suggestionsId);
@@ -313,6 +426,12 @@ function setupHybridAutocomplete(inputId, suggestionsId) {
 
   input.addEventListener('input', function () {
     const val = this.value.trim();
+    // Clear dataset when user types manually
+    this.dataset.type = '';
+    this.dataset.stationName = '';
+    this.dataset.lat = '';
+    this.dataset.lng = '';
+
     if (debounceTimer) clearTimeout(debounceTimer);
 
     if (val.length < 2) {
@@ -321,17 +440,14 @@ function setupHybridAutocomplete(inputId, suggestionsId) {
       return;
     }
 
-    // Immediately show station matches
     const stationMatches = allStationNames
       .filter(n => n.toLowerCase().includes(val.toLowerCase()))
       .slice(0, 4);
 
     renderSuggestions(sugBox, input, stationMatches, []);
 
-    // Debounce geocoding (300ms)
     debounceTimer = setTimeout(async () => {
       const geoResults = await geocodeAddress(val);
-      // Re-check current value hasn't changed
       if (input.value.trim() === val) {
         renderSuggestions(sugBox, input, stationMatches, geoResults);
       }
@@ -357,7 +473,6 @@ function renderSuggestions(sugBox, input, stationMatches, geoResults) {
     return;
   }
 
-  // Station matches first
   if (stationMatches.length > 0) {
     const header = document.createElement('div');
     header.className = 'suggestions-header';
@@ -387,7 +502,6 @@ function renderSuggestions(sugBox, input, stationMatches, geoResults) {
     });
   }
 
-  // Geocoded places
   if (geoResults.length > 0) {
     const header = document.createElement('div');
     header.className = 'suggestions-header';
@@ -424,12 +538,10 @@ async function resolveInput(inputId) {
   const val = input.value.trim();
   if (!val) return null;
 
-  // If user selected a station from autocomplete
   if (input.dataset.type === 'station' && input.dataset.stationName) {
     return { type: 'station', stationName: input.dataset.stationName, label: input.dataset.stationName };
   }
 
-  // If user selected a place from autocomplete
   if (input.dataset.type === 'place' && input.dataset.lat && input.dataset.lng) {
     return {
       type: 'place',
@@ -439,22 +551,15 @@ async function resolveInput(inputId) {
     };
   }
 
-  // Otherwise, try exact station name match first
   const allNames = getAllStationNames();
   const stationMatch = allNames.find(n => n.toLowerCase() === val.toLowerCase());
   if (stationMatch) {
     return { type: 'station', stationName: stationMatch, label: stationMatch };
   }
 
-  // Fall back to geocoding
   const results = await geocodeAddress(val);
   if (results.length > 0) {
-    return {
-      type: 'place',
-      lat: results[0].lat,
-      lng: results[0].lng,
-      label: results[0].name,
-    };
+    return { type: 'place', lat: results[0].lat, lng: results[0].lng, label: results[0].name };
   }
 
   return null;
@@ -481,7 +586,6 @@ async function computeDirections() {
       return;
     }
 
-    // Determine origin station
     let fromStation, fromWalk = null;
     if (from.type === 'station') {
       fromStation = from.stationName;
@@ -501,7 +605,6 @@ async function computeDirections() {
       };
     }
 
-    // Determine destination station
     let toStation, toWalk = null;
     if (to.type === 'station') {
       toStation = to.stationName;
@@ -522,10 +625,9 @@ async function computeDirections() {
     }
 
     if (fromStation === toStation) {
-      // Both near same station — just walk
       if (fromWalk && toWalk) {
         const totalWalk = walkingMinutes(from.lat, from.lng, to.lat, to.lng);
-        resultDiv.innerHTML = `<div class="directions-summary">These locations are close enough to walk (${totalWalk} min)</div>`;
+        resultDiv.innerHTML = `<div class="directions-summary">These locations are close enough to walk (~${totalWalk} min)</div>`;
         return;
       }
       resultDiv.innerHTML = '<div class="directions-error">Origin and destination are at the same station.</div>';
@@ -538,25 +640,21 @@ async function computeDirections() {
       return;
     }
 
-    // Attach walk legs to route
     route.walkFrom = fromWalk;
     route.walkTo = toWalk;
     directionsRoute = route;
 
-    // Calculate total time estimate
-    const subwayMinutes = route.totalStops * 2; // ~2 min per stop
-    const transferMinutes = route.transfers * 4; // ~4 min per transfer
-    const walkMinutes = (fromWalk ? fromWalk.minutes : 0) + (toWalk ? toWalk.minutes : 0);
-    const totalMinutes = subwayMinutes + transferMinutes + walkMinutes;
+    const subwayMinutes = route.totalStops * 2;
+    const transferMinutes = route.transfers * 4;
+    const walkMin = (fromWalk ? fromWalk.minutes : 0) + (toWalk ? toWalk.minutes : 0);
+    const totalMinutes = subwayMinutes + transferMinutes + walkMin;
 
-    // Render
     let html = `<div class="directions-summary">~${totalMinutes} min total · ${route.totalStops} stop${route.totalStops !== 1 ? 's' : ''}`;
     if (route.transfers > 0) {
       html += ` · ${route.transfers} transfer${route.transfers !== 1 ? 's' : ''}`;
     }
     html += `</div>`;
 
-    // Walk to station
     if (fromWalk) {
       html += `<div class="directions-walk-leg">`;
       html += `<span class="walk-icon">🚶</span>`;
@@ -565,13 +663,11 @@ async function computeDirections() {
       html += `</div>`;
     }
 
-    // Subway segments
     route.segments.forEach((seg, segIdx) => {
       const badge = seg.lineId.length <= 3 ? seg.lineId : seg.lineId.charAt(0);
       html += `<div class="directions-segment">`;
       html += `<div class="directions-segment-header">`;
       html += `<span class="directions-line-badge" style="background:${seg.lineColor}">${escHtml(badge)}</span>`;
-
       html += `<span>${escHtml(seg.stations[0].name)} → ${escHtml(seg.stations[seg.stations.length - 1].name)}</span>`;
       if (seg.stations.length > 2) {
         html += `<span class="directions-stop-count">${seg.stations.length - 1} stops</span>`;
@@ -596,7 +692,6 @@ async function computeDirections() {
       }
     });
 
-    // Walk from station
     if (toWalk) {
       html += `<div class="directions-walk-leg">`;
       html += `<span class="walk-icon">🚶</span>`;
@@ -615,7 +710,7 @@ async function computeDirections() {
   }
 }
 
-// ─── Draw route on map with walk legs ──────────────────────────
+// ─── Draw route on map (preview, before riding) ────────────────
 function drawDirectionsOnMap(route) {
   clearDirectionsFromMap();
   if (!hoodMap) return;
@@ -625,117 +720,80 @@ function drawDirectionsOnMap(route) {
   // Walk-from dashed line + pin
   if (route.walkFrom) {
     const wf = route.walkFrom;
-    const srcId = 'directions-walk-from';
-    const lyrId = 'directions-walk-from-layer';
-
-    hoodMap.addSource(srcId, {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [[wf.fromLng, wf.fromLat], [wf.toLng, wf.toLat]],
-        },
-      },
-    });
-
-    hoodMap.addLayer({
-      id: lyrId,
-      type: 'line',
-      source: srcId,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#666',
-        'line-width': 3,
-        'line-opacity': 0.6,
-        'line-dasharray': [2, 2],
-      },
-    });
-
-    directionsLayers.push({ sourceId: srcId, layerId: lyrId });
+    addDirectionsLayer('directions-walk-from', {
+      type: 'LineString',
+      coordinates: [[wf.fromLng, wf.fromLat], [wf.toLng, wf.toLat]],
+    }, { 'line-color': '#666', 'line-width': 3, 'line-opacity': 0.6, 'line-dasharray': [2, 2] });
     allBoundsCoords.push([wf.fromLng, wf.fromLat]);
 
-    // Origin pin
     const originEl = document.createElement('div');
     originEl.className = 'directions-pin origin-pin';
     originEl.textContent = 'A';
-    const originMarker = new mapboxgl.Marker({ element: originEl, anchor: 'center' })
-      .setLngLat([wf.fromLng, wf.fromLat])
-      .addTo(hoodMap);
-    directionsMarkers.push(originMarker);
+    directionsMarkers.push(
+      new mapboxgl.Marker({ element: originEl, anchor: 'center' })
+        .setLngLat([wf.fromLng, wf.fromLat]).addTo(hoodMap)
+    );
   }
 
-  // Subway route segments
+  // Subway segments — straight lines between each station, colored per line
   route.segments.forEach((seg, idx) => {
     const coords = seg.stations.map(s => [s.lng, s.lat]);
-    const sourceId = 'directions-route-' + idx;
-    const layerId = 'directions-layer-' + idx;
 
-    hoodMap.addSource(sourceId, {
+    // White casing for visibility
+    addDirectionsLayer('directions-casing-' + idx, {
+      type: 'LineString', coordinates: coords,
+    }, { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.7 });
+
+    // Colored line
+    addDirectionsLayer('directions-route-' + idx, {
+      type: 'LineString', coordinates: coords,
+    }, { 'line-color': seg.lineColor, 'line-width': 4, 'line-opacity': 0.9 });
+
+    // Station dots along the route
+    const dotFeatures = seg.stations.map(s => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+      properties: { name: s.name },
+    }));
+
+    const dotSrcId = 'directions-dots-' + idx;
+    const dotLyrId = 'directions-dots-layer-' + idx;
+    hoodMap.addSource(dotSrcId, {
       type: 'geojson',
-      data: {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: coords },
-      },
+      data: { type: 'FeatureCollection', features: dotFeatures },
     });
-
     hoodMap.addLayer({
-      id: layerId,
-      type: 'line',
-      source: sourceId,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      id: dotLyrId,
+      type: 'circle',
+      source: dotSrcId,
       paint: {
-        'line-color': seg.lineColor,
-        'line-width': 5,
-        'line-opacity': 0.85,
+        'circle-radius': 3,
+        'circle-color': '#ffffff',
+        'circle-stroke-color': seg.lineColor,
+        'circle-stroke-width': 1.5,
       },
     });
+    directionsLayers.push({ sourceId: dotSrcId, layerId: dotLyrId });
 
-    directionsLayers.push({ sourceId, layerId });
     coords.forEach(c => allBoundsCoords.push(c));
   });
 
   // Walk-to dashed line + pin
   if (route.walkTo) {
     const wt = route.walkTo;
-    const srcId = 'directions-walk-to';
-    const lyrId = 'directions-walk-to-layer';
-
-    hoodMap.addSource(srcId, {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [[wt.fromLng, wt.fromLat], [wt.toLng, wt.toLat]],
-        },
-      },
-    });
-
-    hoodMap.addLayer({
-      id: lyrId,
-      type: 'line',
-      source: srcId,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#666',
-        'line-width': 3,
-        'line-opacity': 0.6,
-        'line-dasharray': [2, 2],
-      },
-    });
-
-    directionsLayers.push({ sourceId: srcId, layerId: lyrId });
+    addDirectionsLayer('directions-walk-to', {
+      type: 'LineString',
+      coordinates: [[wt.fromLng, wt.fromLat], [wt.toLng, wt.toLat]],
+    }, { 'line-color': '#666', 'line-width': 3, 'line-opacity': 0.6, 'line-dasharray': [2, 2] });
     allBoundsCoords.push([wt.toLng, wt.toLat]);
 
-    // Destination pin
     const destEl = document.createElement('div');
     destEl.className = 'directions-pin dest-pin';
     destEl.textContent = 'B';
-    const destMarker = new mapboxgl.Marker({ element: destEl, anchor: 'center' })
-      .setLngLat([wt.toLng, wt.toLat])
-      .addTo(hoodMap);
-    directionsMarkers.push(destMarker);
+    directionsMarkers.push(
+      new mapboxgl.Marker({ element: destEl, anchor: 'center' })
+        .setLngLat([wt.toLng, wt.toLat]).addTo(hoodMap)
+    );
   }
 
   // Fit bounds
@@ -751,6 +809,27 @@ function drawDirectionsOnMap(route) {
   }
 }
 
+// Helper: add a line layer and track for cleanup
+function addDirectionsLayer(id, geometry, paint) {
+  const sourceId = id + '-src';
+  const layerId = id + '-lyr';
+
+  hoodMap.addSource(sourceId, {
+    type: 'geojson',
+    data: { type: 'Feature', geometry: geometry },
+  });
+
+  hoodMap.addLayer({
+    id: layerId,
+    type: 'line',
+    source: sourceId,
+    layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: paint,
+  });
+
+  directionsLayers.push({ sourceId, layerId });
+}
+
 // ─── Clear directions from map ─────────────────────────────────
 function clearDirectionsFromMap() {
   if (!hoodMap) return;
@@ -764,27 +843,111 @@ function clearDirectionsFromMap() {
   directionsMarkers = [];
 }
 
+// ─── Clear ride-specific route layers ──────────────────────────
+function clearRideRouteLayers() {
+  if (!hoodMap) return;
+  rideRouteLayers.forEach(({ sourceId, layerId }) => {
+    if (hoodMap.getLayer(layerId)) hoodMap.removeLayer(layerId);
+    if (hoodMap.getSource(sourceId)) hoodMap.removeSource(sourceId);
+  });
+  rideRouteLayers = [];
+
+  rideRouteMarkers.forEach(m => m.remove());
+  rideRouteMarkers = [];
+}
+
+// ─── Draw the colored route for riding (separate from preview) ─
+function drawRideRoute(route) {
+  clearRideRouteLayers();
+  if (!hoodMap) return;
+
+  // Draw each segment as a colored line with station dots
+  route.segments.forEach((seg, idx) => {
+    const coords = seg.stations.map(s => [s.lng, s.lat]);
+
+    // White casing
+    const casingSrc = 'ride-casing-' + idx;
+    const casingLyr = 'ride-casing-layer-' + idx;
+    hoodMap.addSource(casingSrc, {
+      type: 'geojson',
+      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } },
+    });
+    hoodMap.addLayer({
+      id: casingLyr, type: 'line', source: casingSrc,
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.7 },
+    });
+    rideRouteLayers.push({ sourceId: casingSrc, layerId: casingLyr });
+
+    // Colored route
+    const routeSrc = 'ride-route-' + idx;
+    const routeLyr = 'ride-route-layer-' + idx;
+    hoodMap.addSource(routeSrc, {
+      type: 'geojson',
+      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } },
+    });
+    hoodMap.addLayer({
+      id: routeLyr, type: 'line', source: routeSrc,
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': seg.lineColor, 'line-width': 4, 'line-opacity': 0.9 },
+    });
+    rideRouteLayers.push({ sourceId: routeSrc, layerId: routeLyr });
+
+    // Station dots
+    const dotFeatures = seg.stations.map(s => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+    }));
+    const dotSrc = 'ride-dots-' + idx;
+    const dotLyr = 'ride-dots-layer-' + idx;
+    hoodMap.addSource(dotSrc, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: dotFeatures },
+    });
+    hoodMap.addLayer({
+      id: dotLyr, type: 'circle', source: dotSrc,
+      paint: {
+        'circle-radius': 3,
+        'circle-color': '#ffffff',
+        'circle-stroke-color': seg.lineColor,
+        'circle-stroke-width': 1.5,
+      },
+    });
+    rideRouteLayers.push({ sourceId: dotSrc, layerId: dotLyr });
+  });
+}
+
 // ─── Ride the computed route (animated) ────────────────────────
 function rideDirectionsRoute() {
   if (!directionsRoute || !hoodMap) return;
 
+  // Save route reference before closing panel
+  const route = directionsRoute;
+
   const allCoords = [];
-  directionsRoute.segments.forEach(seg => {
+  route.segments.forEach(seg => {
     seg.stations.forEach(s => { allCoords.push([s.lng, s.lat]); });
   });
 
   if (allCoords.length < 2) return;
 
-  closeDirectionsPanel();
+  // Close the panel but DON'T clear directions yet
+  stopPinMode();
+  if (directionsPanel) { directionsPanel.remove(); directionsPanel = null; }
+  clearDirectionsFromMap();
+
   stopTrainAnimation();
+
+  // Draw the colored route lines that persist during the ride
+  drawRideRoute(route);
 
   const denseRoute = interpolateRoute(allCoords, 2000);
   const totalDurationMs = 90000;
 
   const el = document.createElement('div');
   el.className = 'subway-train-marker';
-  el.style.background = directionsRoute.segments[0].lineColor;
-  const lineLabel = directionsRoute.segments[0].lineId;
+  el.style.background = route.segments[0].lineColor;
+  const lineLabel = route.segments[0].lineId;
   el.textContent = lineLabel.length <= 2 ? lineLabel : lineLabel.charAt(0);
 
   trainMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
@@ -799,7 +962,7 @@ function rideDirectionsRoute() {
   }
   const totalDist = cumDist[cumDist.length - 1];
 
-  const allStations = directionsRoute.segments.flatMap(seg =>
+  const allStations = route.segments.flatMap(seg =>
     seg.stations.map(s => ({ ...s, lineColor: seg.lineColor, lineId: seg.lineId }))
   );
 
@@ -813,7 +976,7 @@ function rideDirectionsRoute() {
   });
 
   const segTransitions = [];
-  directionsRoute.segments.forEach(seg => {
+  route.segments.forEach(seg => {
     const lastStation = seg.stations[seg.stations.length - 1];
     let bestIdx = 0, bestDist = Infinity;
     denseRoute.forEach((pt, i) => {
@@ -850,9 +1013,10 @@ function rideDirectionsRoute() {
     const pt = getPositionAtProgress(progress);
     trainMarker.setLngLat(pt);
 
+    // Update train marker color at segment transitions
     while (currentSegIdx < segTransitions.length - 1 && progress > segTransitions[currentSegIdx].progress) {
       currentSegIdx++;
-      const newSeg = directionsRoute.segments[currentSegIdx];
+      const newSeg = route.segments[currentSegIdx];
       if (newSeg) {
         el.style.background = newSeg.lineColor;
         el.textContent = newSeg.lineId.length <= 2 ? newSeg.lineId : newSeg.lineId.charAt(0);
@@ -879,7 +1043,13 @@ function rideDirectionsRoute() {
       highlightNeighborhoodAtPoint(pt, segTransitions[currentSegIdx]?.lineColor || '#666');
     }
 
-    if (progress >= 1) { finishTrainRide(null); return; }
+    if (progress >= 1) {
+      // Clean up ride route after a delay
+      setTimeout(() => { clearRideRouteLayers(); }, 2000);
+      finishTrainRide(null);
+      return;
+    }
+
     trainAnimationId = requestAnimationFrame(animate);
   }
 

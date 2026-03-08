@@ -1065,8 +1065,14 @@
   margin-bottom: 3px;
 }
 
+.directions-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .directions-input {
-  width: 100%;
+  flex: 1;
   padding: 8px 10px;
   border: 1px solid var(--border, #ddd);
   border-radius: 8px;
@@ -1074,6 +1080,34 @@
   font-family: 'Space Grotesk', sans-serif;
   outline: none;
   box-sizing: border-box;
+  min-width: 0;
+}
+
+.directions-pin-btn {
+  background: none;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.directions-pin-btn:hover {
+  background: #f0f0f0;
+}
+
+.directions-pin-btn.active {
+  background: #e8f0fe;
+  border-color: #4a9eff;
+}
+
+.directions-pin-hint {
+  font-size: 11px;
+  color: #4a9eff;
+  padding: 4px 16px 8px;
+  font-weight: 500;
 }
 
 .directions-input:focus {

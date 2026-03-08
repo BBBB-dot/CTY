@@ -849,6 +849,9 @@ function stopTrainAnimation() {
   if (stationPopupTimeout) clearTimeout(stationPopupTimeout);
   if (stationPopup) { stationPopup.remove(); stationPopup = null; }
 
+  // Clean up directions ride route if present
+  if (typeof clearRideRouteLayers === 'function') clearRideRouteLayers();
+
   clearSubwayHighlights();
 }
 
